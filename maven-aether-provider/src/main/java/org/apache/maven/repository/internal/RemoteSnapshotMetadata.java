@@ -33,7 +33,12 @@ import org.apache.maven.artifact.repository.metadata.Metadata;
 import org.apache.maven.artifact.repository.metadata.Snapshot;
 import org.apache.maven.artifact.repository.metadata.SnapshotVersion;
 import org.apache.maven.artifact.repository.metadata.Versioning;
+import org.sonatype.aether.RepositorySystemSession;
 import org.sonatype.aether.artifact.Artifact;
+import org.sonatype.aether.repository.RemoteRepository;
+import org.sonatype.aether.util.version.QualifierResolutionException;
+import org.sonatype.aether.util.version.Revision;
+import org.sonatype.aether.util.version.SnapshotQualifier;
 
 /**
  * @author Benjamin Bentmann
@@ -44,21 +49,34 @@ final class RemoteSnapshotMetadata
 
     private static final String SNAPSHOT = "SNAPSHOT";
 
+    // could have multiple
+    private static final SnapshotQualifier qualifier = new Revision();
+
     private final Collection<Artifact> artifacts = new ArrayList<Artifact>();
 
     private final Map<String, SnapshotVersion> versions = new LinkedHashMap<String, SnapshotVersion>();
 
     private final boolean legacyFormat;
 
-    public RemoteSnapshotMetadata( Artifact artifact, boolean legacyFormat )
+    private final Artifact artifact;
+
+    private final RepositorySystemSession session;
+
+    private final RemoteRepository repository;
+
+    public RemoteSnapshotMetadata( RepositorySystemSession session, RemoteRepository repository, Artifact artifact,
+                                   boolean legacyFormat )
     {
-        super( createMetadata( artifact, legacyFormat ), null );
-        this.legacyFormat = legacyFormat;
+        this( session, repository, artifact, createMetadata( artifact, legacyFormat ), null, legacyFormat );
     }
 
-    private RemoteSnapshotMetadata( Metadata metadata, File file, boolean legacyFormat )
+    private RemoteSnapshotMetadata( RepositorySystemSession session, RemoteRepository repository, Artifact artifact,
+                                    Metadata metadata, File file, boolean legacyFormat )
     {
         super( metadata, file );
+        this.session = session;
+        this.repository = repository;
+        this.artifact = artifact;
         this.legacyFormat = legacyFormat;
     }
 
@@ -83,7 +101,7 @@ final class RemoteSnapshotMetadata
 
     public MavenMetadata setFile( File file )
     {
-        return new RemoteSnapshotMetadata( metadata, file, legacyFormat );
+        return new RemoteSnapshotMetadata( session, repository, artifact, metadata, file, legacyFormat );
     }
 
     public Object getKey()
@@ -110,16 +128,32 @@ final class RemoteSnapshotMetadata
 
         if ( metadata.getVersioning() == null )
         {
-            DateFormat utcDateFormatter = new SimpleDateFormat( "yyyyMMdd.HHmmss" );
+            final DateFormat utcDateFormatter = new SimpleDateFormat( "yyyyMMdd.HHmmss" );
             utcDateFormatter.setTimeZone( TimeZone.getTimeZone( "UTC" ) );
+            final String timestamp = utcDateFormatter.format( new Date() );
 
             snapshot = new Snapshot();
-            snapshot.setBuildNumber( getBuildNumber( recessive ) + 1 );
-            snapshot.setTimestamp( utcDateFormatter.format( new Date() ) );
+            if ( qualifier.isUnresolvedIn( getVersion() ) )
+            {
+                try
+                {
+                    snapshot.setTimestamp( qualifier.resolveTimestamp( session, repository, artifact ) );
+                    snapshot.setBuildNumber( qualifier.resolveBuildnumber( session, repository, artifact ) );
+                }
+                catch ( QualifierResolutionException e )
+                {
+                    throw new IllegalStateException("Failed to create snapshot deployment metadata",e);
+                }
+            }
+            else
+            {
+                snapshot.setTimestamp( timestamp );
+                snapshot.setBuildNumber( getBuildNumber( recessive ) + 1 );
+            }
 
             Versioning versioning = new Versioning();
             versioning.setSnapshot( snapshot );
-            versioning.setLastUpdated( snapshot.getTimestamp().replace( ".", "" ) );
+            versioning.setLastUpdated( timestamp.replace( ".", "" ) );
             lastUpdated = versioning.getLastUpdated();
 
             metadata.setVersioning( versioning );
@@ -134,7 +168,18 @@ final class RemoteSnapshotMetadata
         {
             String version = artifact.getVersion();
 
-            if ( version.endsWith( SNAPSHOT ) )
+            if ( qualifier.isUnresolvedIn( version ) )
+            {
+                try
+                {
+                    version = qualifier.resolveDeployVersion( session, repository, artifact );
+                }
+                catch ( QualifierResolutionException e )
+                {
+                    throw new IllegalStateException("Failed to create snapshot deployment metadata",e);
+                }
+            }
+            else if ( version.endsWith( SNAPSHOT ) )
             {
                 String qualifier = snapshot.getTimestamp() + "-" + snapshot.getBuildNumber();
                 version = version.substring( 0, version.length() - SNAPSHOT.length() ) + qualifier;

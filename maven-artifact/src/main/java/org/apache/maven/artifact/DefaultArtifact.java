@@ -36,6 +36,8 @@ import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
 import org.apache.maven.artifact.versioning.VersionRange;
 import org.codehaus.plexus.util.StringUtils;
+import org.sonatype.aether.util.version.Qualifier;
+import org.sonatype.aether.util.version.Revision;
 
 /**
  * @author Jason van Zyl
@@ -80,6 +82,8 @@ public class DefaultArtifact
     private Map<Object, ArtifactMetadata> metadataMap;
 
     private boolean optional;
+
+    private final Qualifier qualifier = new Revision();
 
     public DefaultArtifact( String groupId, String artifactId, String version, String scope, String type,
                             String classifier, ArtifactHandler artifactHandler )
@@ -386,15 +390,22 @@ public class DefaultArtifact
 
     protected void setBaseVersionInternal( String baseVersion )
     {
-        Matcher m = VERSION_FILE_PATTERN.matcher( baseVersion );
-
-        if ( m.matches() )
+        if ( qualifier.isResolvedIn( baseVersion ) )
         {
-            this.baseVersion = m.group( 1 ) + "-" + SNAPSHOT_VERSION;
+            this.baseVersion = qualifier.unresolveVersion( baseVersion );
         }
         else
         {
-            this.baseVersion = baseVersion;
+            Matcher m = VERSION_FILE_PATTERN.matcher( baseVersion );
+
+            if ( m.matches() )
+            {
+                this.baseVersion = m.group( 1 ) + "-" + SNAPSHOT_VERSION;
+            }
+            else
+            {
+                this.baseVersion = baseVersion;
+            }
         }
     }
 
@@ -528,7 +539,7 @@ public class DefaultArtifact
     public boolean isSnapshot()
     {
         return getBaseVersion() != null
-            && ( getBaseVersion().endsWith( SNAPSHOT_VERSION ) || getBaseVersion().equals( LATEST_VERSION ) );
+            && ( ( qualifier.isSnapshot() && qualifier.isUnresolvedIn( getBaseVersion() ) ) || ( getBaseVersion().endsWith( SNAPSHOT_VERSION ) || getBaseVersion().equals( LATEST_VERSION ) ) );
     }
 
     public void setResolved( boolean resolved )

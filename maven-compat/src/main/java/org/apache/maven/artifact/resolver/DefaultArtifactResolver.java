@@ -59,8 +59,13 @@ import org.codehaus.plexus.logging.Logger;
 import org.sonatype.aether.RepositorySystem;
 import org.sonatype.aether.RepositorySystemSession;
 import org.sonatype.aether.repository.LocalRepositoryManager;
+import org.sonatype.aether.repository.RemoteRepository;
 import org.sonatype.aether.resolution.ArtifactRequest;
 import org.sonatype.aether.resolution.ArtifactResult;
+import org.sonatype.aether.util.version.Qualifier;
+import org.sonatype.aether.util.version.QualifierResolutionException;
+import org.sonatype.aether.util.version.Revision;
+import org.sonatype.aether.util.version.SnapshotQualifier;
 
 /**
  * @author Jason van Zyl
@@ -94,6 +99,8 @@ public class DefaultArtifactResolver
     private RepositorySystem repoSystem;
 
     private final Executor executor;
+
+    private final SnapshotQualifier qualifier = new Revision();
 
     public DefaultArtifactResolver()
     {
@@ -230,19 +237,36 @@ public class DefaultArtifactResolver
 
             if ( artifact.isSnapshot() )
             {
-                Matcher matcher = Artifact.VERSION_FILE_PATTERN.matcher( artifact.getVersion() );
-                if ( matcher.matches() )
-                {
-                    Snapshot snapshot = new Snapshot();
-                    snapshot.setTimestamp( matcher.group( 2 ) );
+                final Snapshot snapshot = new Snapshot();
+                final String version = artifact.getVersion();
+                if (qualifier.isResolvedIn( version )) {
+                    // TODO pass all remote repos
+                    RemoteRepository repo = RepositoryUtils.toRepo( remoteRepositories.get( 0 ) );
+                    org.sonatype.aether.artifact.Artifact a = RepositoryUtils.toArtifact( artifact );
                     try
                     {
-                        snapshot.setBuildNumber( Integer.parseInt( matcher.group( 3 ) ) );
+                        snapshot.setTimestamp( qualifier.resolveTimestamp( session, repo,  a) );
+                        snapshot.setBuildNumber( qualifier.resolveBuildnumber( session, repo, a) );
                         artifact.addMetadata( new SnapshotArtifactRepositoryMetadata( artifact, snapshot ) );
                     }
-                    catch ( NumberFormatException e )
+                    catch ( QualifierResolutionException e )
                     {
-                        logger.warn( "Invalid artifact version " + artifact.getVersion() + ": " + e.getMessage() );
+                        logger.warn( "Invalid artifact version "+version +": "+ e.getMessage() );
+                    }
+                } else {
+                    Matcher matcher = Artifact.VERSION_FILE_PATTERN.matcher( artifact.getVersion() );
+                    if ( matcher.matches() )
+                    {
+                        snapshot.setTimestamp( matcher.group( 2 ) );
+                        try
+                        {
+                            snapshot.setBuildNumber( Integer.parseInt( matcher.group( 3 ) ) );
+                            artifact.addMetadata( new SnapshotArtifactRepositoryMetadata( artifact, snapshot ) );
+                        }
+                        catch ( NumberFormatException e )
+                        {
+                            logger.warn( "Invalid artifact version " + artifact.getVersion() + ": " + e.getMessage() );
+                        }
                     }
                 }
             }

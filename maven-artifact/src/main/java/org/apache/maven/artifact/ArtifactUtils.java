@@ -27,14 +27,23 @@ import java.util.Map;
 import java.util.regex.Matcher;
 
 import org.apache.maven.artifact.versioning.VersionRange;
+import org.sonatype.aether.util.version.Qualifier;
+import org.sonatype.aether.util.version.Revision;
 
 public final class ArtifactUtils
 {
+
+    private static final Qualifier qualifier = new Revision();
 
     public static boolean isSnapshot( String version )
     {
         if ( version != null )
         {
+            // TODO used to use ignore case
+            if ( qualifier.isIn( version ) )
+            {
+                return true;
+            }
             if ( version.regionMatches( true, version.length() - Artifact.SNAPSHOT_VERSION.length(),
                                         Artifact.SNAPSHOT_VERSION, 0, Artifact.SNAPSHOT_VERSION.length() ) )
             {
@@ -53,6 +62,11 @@ public final class ArtifactUtils
         if ( version == null )
         {
             throw new IllegalArgumentException( "version: null" );
+        }
+
+        if ( qualifier.isResolvedIn( version ) )
+        {
+            return qualifier.unresolveVersion( version );
         }
 
         Matcher m = Artifact.VERSION_FILE_PATTERN.matcher( version );

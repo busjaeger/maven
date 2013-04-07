@@ -30,6 +30,7 @@ import org.sonatype.aether.artifact.Artifact;
 import org.sonatype.aether.deployment.DeployRequest;
 import org.sonatype.aether.impl.MetadataGenerator;
 import org.sonatype.aether.metadata.Metadata;
+import org.sonatype.aether.repository.RemoteRepository;
 
 /**
  * @author Benjamin Bentmann
@@ -42,8 +43,16 @@ class RemoteSnapshotMetadataGenerator
 
     private final boolean legacyFormat;
 
+    private final RepositorySystemSession session;
+
+    private final RemoteRepository remoteRepository;
+
     public RemoteSnapshotMetadataGenerator( RepositorySystemSession session, DeployRequest request )
     {
+        this.session = session;
+
+        this.remoteRepository = request.getRepository();
+
         legacyFormat = ConfigurationProperties.get( session.getConfigProperties(), "maven.metadata.legacy", false );
 
         snapshots = new LinkedHashMap<Object, RemoteSnapshotMetadata>();
@@ -74,7 +83,7 @@ class RemoteSnapshotMetadataGenerator
                 RemoteSnapshotMetadata snapshotMetadata = snapshots.get( key );
                 if ( snapshotMetadata == null )
                 {
-                    snapshotMetadata = new RemoteSnapshotMetadata( artifact, legacyFormat );
+                    snapshotMetadata = new RemoteSnapshotMetadata(session, remoteRepository, artifact, legacyFormat );
                     snapshots.put( key, snapshotMetadata );
                 }
                 snapshotMetadata.bind( artifact );

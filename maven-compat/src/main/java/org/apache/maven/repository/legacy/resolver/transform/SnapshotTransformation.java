@@ -24,6 +24,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
 
+import org.apache.maven.RepositoryUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.deployer.ArtifactDeploymentException;
 import org.apache.maven.artifact.repository.ArtifactRepository;
@@ -35,8 +36,13 @@ import org.apache.maven.artifact.repository.metadata.Snapshot;
 import org.apache.maven.artifact.repository.metadata.SnapshotArtifactRepositoryMetadata;
 import org.apache.maven.artifact.repository.metadata.Versioning;
 import org.apache.maven.artifact.resolver.ArtifactResolutionException;
+import org.apache.maven.plugin.LegacySupport;
 import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
 import org.codehaus.plexus.util.StringUtils;
+import org.sonatype.aether.util.version.QualifierResolutionException;
+import org.sonatype.aether.util.version.Revision;
+import org.sonatype.aether.util.version.SnapshotQualifier;
 
 /**
  * @author <a href="mailto:brett@apache.org">Brett Porter</a>
@@ -46,11 +52,16 @@ import org.codehaus.plexus.util.StringUtils;
 public class SnapshotTransformation
     extends AbstractVersionTransformation
 {
+    @Requirement
+    private LegacySupport legacySupport;
+
     private String deploymentTimestamp;
 
     private static final TimeZone UTC_TIME_ZONE = TimeZone.getTimeZone( "UTC" );
 
     private static final String UTC_TIMESTAMP_PATTERN = "yyyyMMdd.HHmmss";
+
+    private final SnapshotQualifier qualifier = new Revision();
 
     public void transformForResolve( Artifact artifact, RepositoryRequest request )
         throws ArtifactResolutionException
@@ -90,7 +101,7 @@ public class SnapshotTransformation
         {
             Snapshot snapshot = new Snapshot();
 
-            snapshot.setTimestamp( getDeploymentTimestamp() );
+            snapshot.setTimestamp( getDeploymentTimestamp(artifact, remoteRepository) );
 
             // we update the build number anyway so that it doesn't get lost. It requires the timestamp to take effect
             try
@@ -114,11 +125,25 @@ public class SnapshotTransformation
         }
     }
 
-    public String getDeploymentTimestamp()
+    public String getDeploymentTimestamp(Artifact artifact, ArtifactRepository remoteRepository)
     {
         if ( deploymentTimestamp == null )
         {
-            deploymentTimestamp = getUtcDateFormatter().format( new Date() );
+            if (qualifier.isIn( artifact.getVersion() )) {
+                try
+                {
+                    deploymentTimestamp =
+                        qualifier.resolveTimestamp( legacySupport.getRepositorySession(),
+                                                    RepositoryUtils.toRepo( remoteRepository ),
+                                                    RepositoryUtils.toArtifact( artifact ) );
+                }
+                catch ( QualifierResolutionException e )
+                {
+                    throw new IllegalStateException(e);
+                }
+            }else {
+                deploymentTimestamp = getUtcDateFormatter().format( new Date() );
+            }
         }
         return deploymentTimestamp;
     }
@@ -148,15 +173,33 @@ public class SnapshotTransformation
     {
         RepositoryMetadata metadata = new SnapshotArtifactRepositoryMetadata( artifact );
 
-        getLogger().info( "Retrieving previous build number from " + remoteRepository.getId() );
-        repositoryMetadataManager.resolveAlways( metadata, localRepository, remoteRepository );
-
-        int buildNumber = 0;
-        Metadata repoMetadata = metadata.getMetadata();
-        if ( ( repoMetadata != null )
-            && ( repoMetadata.getVersioning() != null && repoMetadata.getVersioning().getSnapshot() != null ) )
+        int buildNumber;
+        if ( qualifier.isIn( artifact.getVersion() ) )
         {
-            buildNumber = repoMetadata.getVersioning().getSnapshot().getBuildNumber();
+            try
+            {
+                buildNumber =
+                    qualifier.resolveBuildnumber( legacySupport.getRepositorySession(),
+                                                  RepositoryUtils.toRepo( remoteRepository ),
+                                                  RepositoryUtils.toArtifact( artifact ) );
+            }
+            catch ( QualifierResolutionException e )
+            {
+                throw new IllegalStateException(e);
+            }
+        }
+        else
+        {
+            getLogger().info( "Retrieving previous build number from " + remoteRepository.getId() );
+            repositoryMetadataManager.resolveAlways( metadata, localRepository, remoteRepository );
+
+            buildNumber = 0;
+            Metadata repoMetadata = metadata.getMetadata();
+            if ( ( repoMetadata != null )
+                && ( repoMetadata.getVersioning() != null && repoMetadata.getVersioning().getSnapshot() != null ) )
+            {
+                buildNumber = repoMetadata.getVersioning().getSnapshot().getBuildNumber();
+            }
         }
         return buildNumber;
     }

@@ -45,6 +45,9 @@ import org.sonatype.aether.SyncContext;
 import org.sonatype.aether.util.DefaultRequestTrace;
 import org.sonatype.aether.util.listener.DefaultRepositoryEvent;
 import org.sonatype.aether.util.metadata.DefaultMetadata;
+import org.sonatype.aether.util.version.QualifierResolutionException;
+import org.sonatype.aether.util.version.Revision;
+import org.sonatype.aether.util.version.Qualifier;
 import org.sonatype.aether.artifact.Artifact;
 import org.sonatype.aether.impl.MetadataResolver;
 import org.sonatype.aether.impl.RepositoryEventDispatcher;
@@ -95,6 +98,9 @@ public class DefaultVersionResolver
 
     @Requirement
     private RepositoryEventDispatcher repositoryEventDispatcher;
+
+    // could have multiple of these
+    private Qualifier qualifier = new Revision();
 
     public void initService( ServiceLocator locator )
     {
@@ -168,7 +174,7 @@ public class DefaultVersionResolver
             }
         }
 
-        Metadata metadata;
+        final Metadata metadata;
 
         if ( RELEASE.equals( version ) )
         {
@@ -196,6 +202,23 @@ public class DefaultVersionResolver
                     new DefaultMetadata( artifact.getGroupId(), artifact.getArtifactId(), version, MAVEN_METADATA_XML,
                                          Metadata.Nature.SNAPSHOT );
             }
+        }
+        else if ( qualifier.isUnresolvedIn( version ) )
+        {
+            metadata = null;
+            final Iterable<RemoteRepository> repositores = request.getRepositories();
+            final VersionResult handlerResult;
+            try
+            {
+                handlerResult = qualifier.resolveVersion( session, repositores, artifact );
+            }
+            catch ( QualifierResolutionException e )
+            {
+                result.addException( e );
+                throw new VersionResolutionException( result );
+            }
+            result.setVersion( version = handlerResult.getVersion() );
+            result.setRepository( handlerResult.getRepository() );
         }
         else
         {
