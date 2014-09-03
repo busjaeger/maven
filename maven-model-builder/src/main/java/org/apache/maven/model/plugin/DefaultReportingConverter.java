@@ -42,7 +42,14 @@ public class DefaultReportingConverter
     implements ReportingConverter
 {
 
+    @Override
     public void convertReporting( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
+    {
+        convertReporting(model);
+    }
+
+    @Override
+    public void convertReporting( Model model )
     {
         Reporting reporting = model.getReporting();
 

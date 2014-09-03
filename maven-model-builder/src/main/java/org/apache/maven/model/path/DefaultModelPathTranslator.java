@@ -50,7 +50,14 @@ public class DefaultModelPathTranslator
         return this;
     }
 
-    public void alignToBaseDirectory( Model model, File basedir, ModelBuildingRequest request )
+    @Override
+    public void alignToBaseDirectory(Model model, File basedir, ModelBuildingRequest request)
+    {
+        alignToBaseDirectory(model, basedir);
+    }
+
+    @Override
+    public void alignToBaseDirectory( Model model, File basedir )
     {
         if ( model == null || basedir == null )
         {

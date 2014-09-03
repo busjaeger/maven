@@ -56,6 +56,14 @@ class ModelData
         this.source = source;
         this.model = model;
     }
+    
+    public ModelData( ModelSource source, Model model, Model rawModel, List<Profile> activeProfiles )
+    {
+        this.source = source;
+        this.model = model;
+        this.rawModel = rawModel;
+        this.activeProfiles = activeProfiles;
+    }
 
     /**
      * Creates a new container for the specified model.

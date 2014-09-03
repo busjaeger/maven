@@ -23,6 +23,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -109,19 +110,22 @@ public abstract class AbstractStringBasedModelInterpolator
     }
 
     protected List<ValueSource> createValueSources( final Model model, final File projectDir,
-                                                    final ModelBuildingRequest config,
+                                                    final int validationLevel,
+                                                    final Properties userProperties,
+                                                    final Properties systemProperties,
+                                                    final Date buildStartTime,
                                                     final ModelProblemCollector problems )
     {
         Properties modelProperties = model.getProperties();
 
         ValueSource modelValueSource1 = new PrefixedObjectValueSource( PROJECT_PREFIXES, model, false );
-        if ( config.getValidationLevel() >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
+        if ( validationLevel >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
         {
             modelValueSource1 = new ProblemDetectingValueSource( modelValueSource1, "pom.", "project.", problems );
         }
 
         ValueSource modelValueSource2 = new ObjectBasedValueSource( model );
-        if ( config.getValidationLevel() >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
+        if ( validationLevel >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
         {
             modelValueSource2 = new ProblemDetectingValueSource( modelValueSource2, "", "project.", problems );
         }
@@ -156,22 +160,22 @@ public abstract class AbstractStringBasedModelInterpolator
                 }
             }, PROJECT_PREFIXES, false );
             valueSources.add( baseUriValueSource );
-            valueSources.add( new BuildTimestampValueSource( config.getBuildStartTime(), modelProperties ) );
+            valueSources.add( new BuildTimestampValueSource( buildStartTime, modelProperties ) );
         }
 
         valueSources.add( modelValueSource1 );
 
-        valueSources.add( new MapBasedValueSource( config.getUserProperties() ) );
+        valueSources.add( new MapBasedValueSource( userProperties ) );
 
         valueSources.add( new MapBasedValueSource( modelProperties ) );
 
-        valueSources.add( new MapBasedValueSource( config.getSystemProperties() ) );
+        valueSources.add( new MapBasedValueSource( systemProperties ) );
 
         valueSources.add( new AbstractValueSource( false )
         {
             public Object getValue( String expression )
             {
-                return config.getSystemProperties().getProperty( "env." + expression );
+                return systemProperties.getProperty( "env." + expression );
             }
         } );
 
@@ -181,8 +185,7 @@ public abstract class AbstractStringBasedModelInterpolator
     }
 
     protected List<? extends InterpolationPostProcessor> createPostProcessors( final Model model,
-                                                                               final File projectDir,
-                                                                               final ModelBuildingRequest config )
+                                                                               final File projectDir )
     {
         List<InterpolationPostProcessor> processors = new ArrayList<InterpolationPostProcessor>( 2 );
         if ( projectDir != null )

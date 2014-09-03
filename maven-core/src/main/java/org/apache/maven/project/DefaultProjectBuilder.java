@@ -50,6 +50,7 @@ import org.apache.maven.model.ReportPlugin;
 import org.apache.maven.model.building.DefaultModelBuildingRequest;
 import org.apache.maven.model.building.DefaultModelProblem;
 import org.apache.maven.model.building.FileModelSource;
+import org.apache.maven.model.building.InterpolatedModel;
 import org.apache.maven.model.building.ModelBuilder;
 import org.apache.maven.model.building.ModelBuildingException;
 import org.apache.maven.model.building.ModelBuildingRequest;

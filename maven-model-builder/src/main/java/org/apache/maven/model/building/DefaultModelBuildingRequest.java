@@ -25,6 +25,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
+import org.apache.maven.model.Model;
 import org.apache.maven.model.Profile;
 import org.apache.maven.model.resolution.ModelResolver;
 
@@ -40,6 +41,8 @@ public class DefaultModelBuildingRequest
     private File pomFile;
 
     private ModelSource modelSource;
+
+    private Model rawModel;
 
     private int validationLevel = VALIDATION_LEVEL_STRICT;
 
@@ -83,6 +86,7 @@ public class DefaultModelBuildingRequest
     {
         setPomFile( request.getPomFile() );
         setModelSource( request.getModelSource() );
+        setRawModel(request.getRawModel());
         setValidationLevel( request.getValidationLevel() );
         setProcessPlugins( request.isProcessPlugins() );
         setTwoPhaseBuilding( request.isTwoPhaseBuilding() );
@@ -122,6 +126,17 @@ public class DefaultModelBuildingRequest
     {
         this.modelSource = modelSource;
 
+        return this;
+    }
+
+    @Override
+    public Model getRawModel() {
+        return this.rawModel;
+    }
+
+    @Override
+    public ModelBuildingRequest setRawModel(Model model) {
+        this.rawModel = model;
         return this;
     }
 

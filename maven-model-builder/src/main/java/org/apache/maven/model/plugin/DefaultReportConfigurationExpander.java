@@ -38,7 +38,8 @@ public class DefaultReportConfigurationExpander
     implements ReportConfigurationExpander
 {
 
-    public void expandPluginConfiguration( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
+    @Override
+    public void expandPluginConfiguration( Model model )
     {
         Reporting reporting = model.getReporting();
 
@@ -59,6 +60,11 @@ public class DefaultReportConfigurationExpander
                 }
             }
         }
+    }
+
+    @Override
+    public void expandPluginConfiguration(Model model, ModelBuildingRequest request, ModelProblemCollector problems) {
+        expandPluginConfiguration(model);
     }
 
 }

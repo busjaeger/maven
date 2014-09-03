@@ -41,4 +41,6 @@ public interface PluginManagementInjector
      */
     void injectManagement( Model model, ModelBuildingRequest request, ModelProblemCollector problems );
 
+    void injectManagement(Model effectiveModel);
+
 }

@@ -1,0 +1,40 @@
+Outstanding task for native partial build support and notes
+
+
+1. implement generation provider to download models (Jason)
+- see TODO in ProjectGraphBuilder#build binModels
+- graph builder needs set of available IDs (versionless), but models could be loaded lazily
+- may be desriable to make generation optional if not needed (full build or 'am')
+
+
+2. Hook ProjectGraphBuilder into maven (Jason)
+- graph builder builds trimmed, topo-sorted project graph
+- subsumes functionality in DefaultMaven from getProjectsForMavenReactor to lifecycle execution
+
+
+3. Use ProjectGraph during plugin and dependency resolution (Jason)
+- when dependency resolution kicks in during lifecycle execution, ProjectGraph should take precedence
+- in particular, ranges should be supported for in-reactor plugin projects
+
+
+4. Hook DefaultModelBuilder into ProjectGraphBuilder (Ben)
+- model builder should not try to read parent locally via relative path, but leave decision up to ModelResolver
+- this allows for new resolver implementation that resolves parents purely based on coordinates
+
+
+5. Support modes other than also-make-dependents (Ben)
+- for also-make a source project forces its dependencies to be source as well
+- for full-build mode all projects are 'selected'
+
+
+6. Write unit tests for ProjectGraphBuilder (Ben)
+
+
+7. Aggregate model loading errors instead of failing on first error
+
+
+8. Implement range checking on resolved projects
+
+
+9. Change validation rules to allow omitting version elements
+- requires further discussion

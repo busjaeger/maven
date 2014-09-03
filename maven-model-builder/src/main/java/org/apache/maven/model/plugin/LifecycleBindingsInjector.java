@@ -43,4 +43,6 @@ public interface LifecycleBindingsInjector
      */
     void injectLifecycleBindings( Model model, ModelBuildingRequest request, ModelProblemCollector problems );
 
+    void injectLifecycleBindings( Model model, ModelProblemCollector problems );
+
 }

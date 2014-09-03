@@ -24,6 +24,8 @@ import org.apache.maven.model.building.ModelBuildingRequest;
 import org.apache.maven.model.building.ModelProblemCollector;
 
 import java.io.File;
+import java.util.Date;
+import java.util.Properties;
 
 /**
  * Replaces expressions of the form <tt>${token}</tt> with their effective values. Effective values are basically
@@ -50,5 +52,8 @@ public interface ModelInterpolator
      */
     Model interpolateModel( Model model, File projectDir, ModelBuildingRequest request,
                             ModelProblemCollector problems );
+
+    Model interpolateModel(Model model, File projectDir, int validationLevel, Properties userProperties,
+            Properties systemProperties, Date buildStartTime, ModelProblemCollector problems);
 
 }

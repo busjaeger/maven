@@ -52,13 +52,16 @@ import org.apache.maven.model.Plugin;
 import org.apache.maven.model.building.ModelProblem;
 import org.apache.maven.model.building.ModelProblemUtils;
 import org.apache.maven.model.building.ModelSource;
+import org.apache.maven.model.building.Result;
 import org.apache.maven.model.building.UrlModelSource;
+import org.apache.maven.model.io.ModelParseException;
 import org.apache.maven.plugin.LegacySupport;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.ProjectBuilder;
 import org.apache.maven.project.ProjectBuildingException;
 import org.apache.maven.project.ProjectBuildingRequest;
 import org.apache.maven.project.ProjectBuildingResult;
+import org.apache.maven.project.ProjectDependencyGraphBuilder;
 import org.apache.maven.repository.LocalRepositoryNotAccessibleException;
 import org.apache.maven.repository.internal.MavenRepositorySystemUtils;
 import org.apache.maven.settings.Mirror;
@@ -102,6 +105,9 @@ import org.eclipse.aether.util.repository.SimpleResolutionErrorPolicy;
 public class DefaultMaven
     implements Maven
 {
+
+    @Requirement
+    private ProjectDependencyGraphBuilder projectGraphBuilder;
 
     @Requirement
     private Logger logger;
@@ -246,33 +252,37 @@ public class DefaultMaven
 
         eventCatapult.fire( ExecutionEvent.Type.ProjectDiscoveryStarted, session, null );
 
-        List<MavenProject> projects;
-        try
-        {
-            projects = getProjectsForMavenReactor( session );
-            //
-            // Capture the full set of projects before any potential constraining is performed by --projects
-            //
-            session.setAllProjects( projects );
-        }
-        catch ( ProjectBuildingException e )
-        {
-            return addExceptionToResult( result, e );
-        }
+        final Result<? extends ProjectDependencyGraph> graphResult = projectGraphBuilder.build(session);
+        if (graphResult.hasErrors()) System.out.println(graphResult.getProblems());
+        final ProjectDependencyGraph projectDependencyGraph = graphResult.get();
 
-        validateProjects( projects );
-
-        //
-        // This creates the graph and trims the projects down based on the user request using something like:
-        //
-        // -pl project0,project2 eclipse:eclipse
-        //
-        ProjectDependencyGraph projectDependencyGraph = createProjectDependencyGraph( projects, request, result, true );
-
-        if ( result.hasExceptions() )
-        {
-            return result;
-        }
+//        List<MavenProject> projects;
+//        try
+//        {
+//            projects = getProjectsForMavenReactor( session );
+//            //
+//            // Capture the full set of projects before any potential constraining is performed by --projects
+//            //
+//            session.setAllProjects( projects );
+//        }
+//        catch ( ProjectBuildingException e )
+//        {
+//            return addExceptionToResult( result, e );
+//        }
+//
+//        validateProjects( projects );
+//
+//        //
+//        // This creates the graph and trims the projects down based on the user request using something like:
+//        //
+//        // -pl project0,project2 eclipse:eclipse
+//        //
+//        ProjectDependencyGraph projectDependencyGraph = createProjectDependencyGraph( projects, request, result, true );
+//
+//        if ( result.hasExceptions() )
+//        {
+//            return result;
+//        }
 
         session.setProjects( projectDependencyGraph.getSortedProjects() );
 
@@ -307,34 +317,34 @@ public class DefaultMaven
 
         repoSession.setReadOnly();
 
-        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
-        try
-        {
-            for ( AbstractMavenLifecycleParticipant listener : getLifecycleParticipants( projects ) )
-            {
-                Thread.currentThread().setContextClassLoader( listener.getClass().getClassLoader() );
-
-                listener.afterProjectsRead( session );
-            }
-        }
-        catch ( MavenExecutionException e )
-        {
-            return addExceptionToResult( result, e );
-        }
-        finally
-        {
-            Thread.currentThread().setContextClassLoader( originalClassLoader );
-        }
-
-        //
-        // The projects need to be topologically after the participants have run their afterProjectsRead(session)
-        // because the participant is free to change the dependencies of a project which can potentially change the
-        // topological order of the projects, and therefore can potentially change the build order.
-        //
-        // Note that participants may affect the topological order of the projects but it is
-        // not expected that a participant will add or remove projects from the session.
-        //
-        projectDependencyGraph = createProjectDependencyGraph( session.getProjects(), request, result, false );
+//        ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+//        try
+//        {
+//            for ( AbstractMavenLifecycleParticipant listener : getLifecycleParticipants( projects ) )
+//            {
+//                Thread.currentThread().setContextClassLoader( listener.getClass().getClassLoader() );
+//
+//                listener.afterProjectsRead( session );
+//            }
+//        }
+//        catch ( MavenExecutionException e )
+//        {
+//            return addExceptionToResult( result, e );
+//        }
+//        finally
+//        {
+//            Thread.currentThread().setContextClassLoader( originalClassLoader );
+//        }
+//
+//        //
+//        // The projects need to be topologically after the participants have run their afterProjectsRead(session)
+//        // because the participant is free to change the dependencies of a project which can potentially change the
+//        // topological order of the projects, and therefore can potentially change the build order.
+//        //
+//        // Note that participants may affect the topological order of the projects but it is
+//        // not expected that a participant will add or remove projects from the session.
+//        //
+//        projectDependencyGraph = createProjectDependencyGraph( session.getProjects(), request, result, false );
 
         try
         {
@@ -364,7 +374,7 @@ public class DefaultMaven
         {
             try
             {
-                afterSessionEnd( projects, session );
+                afterSessionEnd( projectDependencyGraph.getSortedProjects(), session );
             }
             catch ( MavenExecutionException e )
             {

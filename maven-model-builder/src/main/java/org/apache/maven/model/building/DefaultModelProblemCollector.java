@@ -130,12 +130,11 @@ class DefaultModelProblemCollector
         severities.add( problem.getSeverity() );
     }
 
-    public void addAll( List<ModelProblem> problems )
+    public void addAll( Iterable<? extends ModelProblem> problems )
     {
-        this.problems.addAll( problems );
-
         for ( ModelProblem problem : problems )
         {
+            this.problems.add(problem);
             severities.add( problem.getSeverity() );
         }
     }

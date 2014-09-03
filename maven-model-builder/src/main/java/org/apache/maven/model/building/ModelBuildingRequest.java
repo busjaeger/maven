@@ -24,6 +24,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
+import org.apache.maven.model.Model;
 import org.apache.maven.model.Profile;
 import org.apache.maven.model.resolution.ModelResolver;
 
@@ -98,6 +99,22 @@ public interface ModelBuildingRequest
      * @return This request, never {@code null}.
      */
     ModelBuildingRequest setPomFile( File pomFile );
+
+    /**
+     * Gets the raw model.
+     * 
+     * @return
+     */
+    Model getRawModel();
+
+    /**
+     * Sets the raw model if it has already be loaded prior to calling the model builder. If present, it will be used
+     * instead of model source or pom file parameters and parsing will be skipped.
+     * 
+     * @param model
+     * @return This request, never {@code null}
+     */
+    ModelBuildingRequest setRawModel(Model model);
 
     /**
      * Gets the level of validation to perform on processed models.

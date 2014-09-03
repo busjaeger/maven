@@ -47,7 +47,13 @@ public class DefaultModelUrlNormalizer
         return this;
     }
 
-    public void normalize( Model model, ModelBuildingRequest request )
+    @Override
+    public void normalize(Model model, ModelBuildingRequest request) {
+        normalize(model);
+    }
+
+    @Override
+    public void normalize( Model model )
     {
         if ( model == null )
         {

@@ -39,9 +39,11 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component( role = ModelInterpolator.class )
@@ -57,19 +59,33 @@ public class StringSearchModelInterpolator
     public Model interpolateModel( Model model, File projectDir, ModelBuildingRequest config,
                                    ModelProblemCollector problems )
     {
-        interpolateObject( model, model, projectDir, config, problems );
+        return interpolateModel(model, projectDir, config.getValidationLevel(), config.getUserProperties(),
+                config.getSystemProperties(), config.getBuildStartTime(), problems);
+    }
 
+    public Model interpolateModel(Model model, File projectDir, int validationLevel, Properties userProperties,
+            Properties systemProperties, Date buildStartTime, ModelProblemCollector problems) {
+        interpolateObject(model, model, projectDir, validationLevel, userProperties, systemProperties, buildStartTime, problems);
         return model;
     }
 
     protected void interpolateObject( Object obj, Model model, File projectDir, ModelBuildingRequest config,
                                       ModelProblemCollector problems )
     {
+        interpolateObject(obj, model, projectDir, config.getValidationLevel(), config.getUserProperties(),
+                config.getSystemProperties(), config.getBuildStartTime(), problems);
+    }
+
+    protected void interpolateObject( Object obj, Model model, File projectDir, int validationLevel,
+                                      Properties userProperties, Properties systemProperties,
+                                      Date buildStartTime, ModelProblemCollector problems )
+    {
         try
         {
-            List<? extends ValueSource> valueSources = createValueSources( model, projectDir, config, problems );
+            List<? extends ValueSource> valueSources = createValueSources( model, projectDir, validationLevel,
+                    userProperties, systemProperties, buildStartTime, problems );
             List<? extends InterpolationPostProcessor> postProcessors =
-                createPostProcessors( model, projectDir, config );
+                createPostProcessors( model, projectDir );
 
             InterpolateObjectAction action =
                 new InterpolateObjectAction( obj, valueSources, postProcessors, this, problems );

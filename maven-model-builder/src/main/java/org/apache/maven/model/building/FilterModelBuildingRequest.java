@@ -24,6 +24,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
+import org.apache.maven.model.Model;
 import org.apache.maven.model.Profile;
 import org.apache.maven.model.resolution.ModelResolver;
 
@@ -66,6 +67,16 @@ class FilterModelBuildingRequest
         request.setModelSource( modelSource );
 
         return this;
+    }
+
+    @Override
+    public Model getRawModel() {
+        return request.getRawModel();
+    }
+
+    @Override
+    public ModelBuildingRequest setRawModel(Model model) {
+        return request.setRawModel(model);
     }
 
     public int getValidationLevel()

@@ -59,6 +59,11 @@ public class DefaultLifecycleBindingsInjector
 
     public void injectLifecycleBindings( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
     {
+        injectLifecycleBindings(model, problems);
+    }
+
+    public void injectLifecycleBindings( Model model, ModelProblemCollector problems )
+    {
         String packaging = model.getPackaging();
 
         Collection<Plugin> defaultPlugins = lifecycle.getPluginsBoundByDefaultToAllLifecycles( packaging );

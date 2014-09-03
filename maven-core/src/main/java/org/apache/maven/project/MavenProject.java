@@ -19,6 +19,9 @@ package org.apache.maven.project;
  * under the License.
  */
 
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.concat;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
@@ -72,6 +75,8 @@ import org.codehaus.plexus.util.xml.Xpp3Dom;
 import org.eclipse.aether.graph.DependencyFilter;
 import org.eclipse.aether.repository.RemoteRepository;
 
+import com.google.common.base.Predicate;
+
 /**
  * The concern of the project is provide runtime values based on the model.
  * <p/>
@@ -95,9 +100,17 @@ public class MavenProject
 
     public static final String EMPTY_PROJECT_VERSION = "0";
 
+    private boolean source = true;
+
     private Model model;
 
     private MavenProject parent;
+
+    private Iterable<? extends MavenProject> projectDependencies;
+
+    private Iterable<? extends MavenProject> projectPlugins;
+
+    private Iterable<? extends MavenProject> projectImports;
 
     private File file;
 
@@ -223,6 +236,52 @@ public class MavenProject
     public Model getModel()
     {
         return model;
+    }
+
+    boolean isSource() {
+        return source;
+    }
+
+    void setSource(boolean source) {
+        this.source = source;
+    }
+
+    Iterable<? extends MavenProject> getProjectDependencies() {
+        return projectDependencies;
+    }
+
+    void setProjectDependencies(Iterable<? extends MavenProject> projectDependencies) {
+        this.projectDependencies = projectDependencies;
+    }
+
+    void setProjectPlugins(Iterable<? extends MavenProject> projectPlugins) {
+        this.projectPlugins = projectPlugins;
+    }
+
+    Iterable<? extends MavenProject> getProjectPlugins() {
+        return projectPlugins;
+    }
+
+    void setProjectImports(Iterable<? extends MavenProject> projectImports) {
+        this.projectImports = projectImports;
+    }
+
+    Iterable<? extends MavenProject> getProjectImports() {
+        return projectImports;
+    }
+
+    Iterable<MavenProject> getAllProjectDependencies() {
+        return concat(parent == null ? Collections.<MavenProject> emptyList() : Collections.singleton(parent),
+                projectDependencies, projectPlugins, projectImports);
+    }
+
+    boolean hasSourceDependency() {
+        return any(getAllProjectDependencies(), new Predicate<MavenProject>() {
+            @Override
+            public boolean apply(MavenProject input) {
+                return input.source;
+            }
+        });
     }
 
     /**

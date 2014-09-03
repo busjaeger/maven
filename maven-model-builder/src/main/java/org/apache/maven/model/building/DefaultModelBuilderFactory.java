@@ -237,6 +237,11 @@ public class DefaultModelBuilderFactory
         {
         }
 
+        @Override
+        public void injectLifecycleBindings(Model model, ModelProblemCollector problems)
+        {
+        }
+
     }
 
 }
