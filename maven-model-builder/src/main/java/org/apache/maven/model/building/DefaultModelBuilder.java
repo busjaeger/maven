@@ -21,7 +21,9 @@ package org.apache.maven.model.building;
 
 import static com.google.common.collect.Iterables.addAll;
 import static com.google.common.collect.Iterables.transform;
+import static com.google.common.collect.Lists.newArrayList;
 import static org.apache.maven.model.building.DefaultActivatedModel.getActiveModel;
+import static org.apache.maven.model.building.Result.error;
 import static org.apache.maven.model.building.Result.newResult;
 import static org.apache.maven.model.building.Result.success;
 import static org.apache.maven.model.profile.DefaultProfileActivationContext.pac;
@@ -79,6 +81,8 @@ import org.apache.maven.model.superpom.SuperPomProvider;
 import org.apache.maven.model.validation.ModelValidator;
 import org.codehaus.plexus.component.annotations.Component;
 import org.codehaus.plexus.component.annotations.Requirement;
+
+import com.google.common.collect.Lists;
 
 /**
  * @author Benjamin Bentmann
@@ -247,45 +251,43 @@ public class DefaultModelBuilder
         // load
         final ModelSource source = request.getModelSource() == null ? new FileModelSource(request.getPomFile())
                 : request.getModelSource();
-        final Result<Model> loadedModel = load(source, request.getValidationLevel(), request.isLocationTracking());
-        final Model rawModel = loadedModel.get();
+        final Result<Model> loaded = load(source, request.getValidationLevel(), request.isLocationTracking());
+        final Model rawModel = loaded.get();
 
         // activate
         final ExternalProfileActivationContext epac = new DefaultExternalProfileActivationContext(
                 request.getActiveProfileIds(), request.getInactiveProfileIds(), request.getSystemProperties(),
                 request.getUserProperties());
-        final Result<ActivatedModel> activatedModel = activate(rawModel.clone(), request.getProfiles(), epac);
+        final Result<ActivatedModel> activated = activate(rawModel.clone(), request.getProfiles(), epac);
+        final ActivatedModel activatedModel = activated.get();
 
         // assemble and interpolate
-        configureResolver(request.getModelResolver(), activatedModel.get().getActiveModel(), problems);
+        final ModelResolver resolver = request.getModelResolver();
+        configureResolver(resolver, activatedModel.getActiveModel(), problems);
         final Parents parents = new Parents() {
             @Override
             public void traverse(Visitor v) {
-                Model current = activatedModel.get().getActiveModel();
+                Model current = activatedModel.getActiveModel();
                 ModelSource currentSource = source;
                 while (current.getParent() != null) {
-                    final ModelData parent;
-                    try {
-                        parent = readParent(current, currentSource, request, problems);
-                    } catch (ModelBuildingException e) {
-                        // TODO
-                        throw new RuntimeException(e);
-                    }
-                    final ActivatedModel activatedModel = v.visit(success(parent.getModel()));
+                    final Result<ModelData> pr = readParent(current, currentSource, request);
+                    final ModelData md = pr.get();
+                    current = md == null ? null : md.getModel();
+                    currentSource = md == null ? null : md.getSource();
+                    final ActivatedModel activatedModel = v.visit(newResult(pr.hasErrors(), current, pr.getProblems()));
                     final Model activeModel = activatedModel.getActiveModel();
-                    configureResolver(request.getModelResolver(), activeModel, problems);
-                    current = parent.getModel();
-                    currentSource = parent.getSource();
+                    if (activeModel == null) return;
+                    configureResolver(resolver, activeModel, problems);
                 }
                 final ActivatedModel m = v.visit(success(getSuperModel()));
-                configureResolver(request.getModelResolver(), m.getActiveModel(), problems);
+                configureResolver(resolver, m.getActiveModel(), problems);
             }
         };
-        final Result<InterpolatedModel> model = interpolate(activatedModel.get(), parents,
-                request.getValidationLevel(), request.getBuildStartTime(), request.getSystemProperties(),
-                request.getUserProperties());
+        final Result<InterpolatedModel> model = interpolate(activatedModel, parents, request.getValidationLevel(),
+                request.getBuildStartTime(), request.getSystemProperties(), request.getUserProperties());
 
         result.setEffectiveModel(model.get().getInterpolatedModel());
+        result.setActiveExternalProfiles(activatedModel.getActiveExternalProfiles());
 
         if (!request.isTwoPhaseBuilding()) return result;
 
@@ -326,8 +328,6 @@ public class DefaultModelBuilder
         modelPathTranslator.alignToBaseDirectory(effectiveModel, effectiveModel.getProjectDirectory());
         pluginManagementInjector.injectManagement(effectiveModel);
 
-        // TODO pass in request
-        // TODO figure out how these extensions are resolved (probably don't use reactor so OK)
         try {
             fireEvent(effectiveModel, new DefaultModelBuildingRequest().setProcessPlugins(processPlugins)
                     .setModelBuildingListener(listener), problems,
@@ -365,26 +365,25 @@ public class DefaultModelBuilder
                 new DefaultModelBuildingResult());
 
         // activate parent profiles using this project's activation context, i.e. base directory and properties
-        // TODO define error handling
         final ProfileActivationContext pac = activatedModel.getProfileActivationContext();
-        final List<ActivatedModel> lineage = new ArrayList<ActivatedModel>();
-        parents.traverse(new Parents.Visitor() {
+        
+        final Result<? extends Iterable<? extends ActivatedModel>> prs = parents.traverse(new Parents.Visitor() {
             @Override
-            public ActivatedModel visit(Result<? extends Model> parent) {
-                collector.addAll(parent.getProblems());
-                if (parent.hasErrors()) return null;
-
+            public Result<ActivatedModel> visit(Result<? extends Model> parent) {
+                if (parent.hasErrors()) return error(parent.getProblems());
                 // Note: not calling {@link activate} here, because we're not activating in parent's context
                 final Model rawParent = parent.get();
                 final Model activeParent = rawParent.clone();
-                // TODO pac should use parent properties
-                final List<Profile> activeProfiles = activatePomProfiles(rawParent, activeParent, pac, collector);
-                final ActivatedModel am = new DefaultActivatedModel(activeParent, activeProfiles, Collections
-                        .<Profile> emptyList(), pac);
-                lineage.add(am);
-                return am;
+                final ProfileActivationContext ppac = pac(pac, activeParent.getProperties());
+                final DefaultModelProblemCollector collector = new DefaultModelProblemCollector(
+                        new DefaultModelBuildingResult());
+                final List<Profile> activeProfiles = activatePomProfiles(rawParent, activeParent, ppac, collector);
+                return Result.<ActivatedModel> newResult(new DefaultActivatedModel(activeParent, activeProfiles,
+                        Collections.<Profile> emptyList(), pac), collector.getProblems());
             }
         });
+        if (collector.hasErrors()) collector.newModelBuildingException();
+        final Iterable<? extends ActivatedModel> lineage = prs.get();
 
         // merge parent models into activated model
         final Model activeModel = activatedModel.getActiveModel();
@@ -462,16 +461,12 @@ public class DefaultModelBuilder
 
     @Override
     public Result<Model> load(ModelSource source, int validationLevel, boolean locationTracking) {
-        DefaultModelProblemCollector collector = new DefaultModelProblemCollector(new DefaultModelBuildingResult());
-        Model model = null;
-        boolean error = false;
+        final DefaultModelProblemCollector collector = new DefaultModelProblemCollector(new DefaultModelBuildingResult());
         try {
-            model = readModel(source, validationLevel, locationTracking, collector);
+            return newResult(readModel(source, validationLevel, locationTracking, collector), collector.getProblems());
         } catch (ModelBuildingException e) {
-            // TODO: certain errors don't throw exceptions. Should they be treated as errors?
-            error = true;
+            return error(collector.getProblems());
         }
-        return new Result<Model>(error, model, collector.getProblems());
     }
 
     private Model readModel(ModelSource modelSource, int validationLevel, boolean locationTracking,
@@ -607,7 +602,7 @@ public class DefaultModelBuilder
         }
     }
 
-    private void checkPluginVersions( List<ActivatedModel> lineage, int validationLevel,
+    private void checkPluginVersions( Iterable<? extends ActivatedModel> l, int validationLevel,
                                       ModelProblemCollector problems )
     {
         if ( validationLevel < ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
@@ -619,6 +614,7 @@ public class DefaultModelBuilder
         Map<String, String> versions = new HashMap<String, String>();
         Map<String, String> managedVersions = new HashMap<String, String>();
 
+        List<ActivatedModel> lineage = newArrayList(l);
         for ( int i = lineage.size() - 1; i >= 0; i-- )
         {
             Model model = lineage.get( i ).getActiveModel();
@@ -661,11 +657,11 @@ public class DefaultModelBuilder
         }
     }
 
-    private Model assembleInheritance(ActivatedModel activatedModel, List<ActivatedModel> lineage,
+    private Model assembleInheritance(ActivatedModel activatedModel, Iterable<? extends ActivatedModel> lineage,
             ModelProblemCollector problems) {
-        if (lineage.isEmpty()) throw new IllegalArgumentException("lineage must at least contain super pom");
+        if (!lineage.iterator().hasNext()) throw new IllegalArgumentException("lineage must at least contain super pom");
 
-        List<Model> models = new ArrayList<Model>(lineage.size() + 1);
+        List<Model> models = new ArrayList<Model>();
         models.add(activatedModel.getActiveModel());
         addAll(models, transform(lineage, getActiveModel));
 
@@ -731,6 +727,15 @@ public class DefaultModelBuilder
         injectProfileActivations( model, originalActivations );
 
         return result;
+    }
+
+    private Result<ModelData> readParent(Model childModel, ModelSource childSource, ModelBuildingRequest request) {
+        DefaultModelProblemCollector collector = new DefaultModelProblemCollector(new DefaultModelBuildingResult());
+        try {
+            return newResult(readParent(childModel, childSource, request, collector), collector.getProblems());
+        } catch (ModelBuildingException e) {
+            return error(collector.getProblems());
+        }
     }
 
     private ModelData readParent( Model childModel, ModelSource childSource, ModelBuildingRequest request,

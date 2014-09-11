@@ -32,7 +32,11 @@ import com.google.common.base.Predicates;
 public class Result<T> {
 
     public static <T> Result<T> success(T model) {
-        return newResult(model, Collections.<ModelProblem> emptyList());
+        return success(model, Collections.<ModelProblem> emptyList());
+    }
+
+    public static <T> Result<T> success(T model, Iterable<? extends ModelProblem> problems) {
+        return newResult(true, model, problems);
     }
 
     public static <T> Result<T> error(Iterable<? extends ModelProblem> problems) {

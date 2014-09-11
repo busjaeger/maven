@@ -46,6 +46,12 @@ public class DefaultProfileActivationContext
                 fromProperties(model.getProperties()), model.getPomFile().getParentFile());
     }
 
+    public static ProfileActivationContext pac(ProfileActivationContext pac, Properties projectProperties) {
+        return new DefaultProfileActivationContext(pac.getActiveProfileIds(), pac.getInactiveProfileIds(),
+                pac.getSystemProperties(), pac.getUserProperties(), fromProperties(projectProperties),
+                pac.getProjectDirectory());
+    }
+
     private List<String> activeProfileIds;
 
     private List<String> inactiveProfileIds;

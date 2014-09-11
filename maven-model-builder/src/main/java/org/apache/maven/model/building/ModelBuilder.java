@@ -81,10 +81,10 @@ public interface ModelBuilder {
 
     interface Parents {
 
-        void traverse(Visitor v);
+        Result<? extends Iterable<? extends ActivatedModel>> traverse(Visitor v);
 
         interface Visitor {
-            ActivatedModel visit(Result<? extends Model> parent);
+            Result<ActivatedModel> visit(Result<? extends Model> parent);
         }
 
     }

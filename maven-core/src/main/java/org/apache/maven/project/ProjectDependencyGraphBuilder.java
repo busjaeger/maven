@@ -273,49 +273,36 @@ public class ProjectDependencyGraphBuilder {
         project.setSource(source);
 
         // 1. activate model -> should likely be moved into model loader, since profiles can add modules
-        final Result<ActivatedModel> activationResult = modelBuilder.activate(model, state.request.getProfiles(),
-                state.epac);
-        if (activationResult.hasErrors()) return error(project, activationResult.getProblems());
-        final ActivatedModel activatedModel = activationResult.get();
+        final Result<ActivatedModel> activation = modelBuilder.activate(model, state.request.getProfiles(), state.epac);
+        if (activation.hasErrors()) return error(project, activation.getProblems());
 
         // 2. build parent models as they are needed to interpolate model
-        final Model activeModel = activatedModel.getActiveModel();
-        final Result<MavenProject> parent = activeModel.getParent() != null ? buildSrcRef(activeModel.getParent(),
-                getParentId, state) : null;
-        if (parent != null) {
-            if (parent.hasErrors()) return error(project, parent.getProblems());
-            project.setParent(parent.get());
+        final Model activeModel = activation.get().getActiveModel();
+        final MavenProject parent;
+        if (activeModel.getParent() == null) {
+            parent = null;
+        } else {
+            final Result<MavenProject> parentResult = buildDependency(activeModel.getParent(), getParentId, state);
+            if (parentResult == null)
+                parent = null;
+            else if (parentResult.hasErrors())
+                return error(parentResult.getProblems()); // TODO don't return parent problem
+            else
+                parent = parentResult.get();
         }
 
         // 3. interpolate model using resolved parents - build effective resolver in the process
-        final ModelResolver resolver = newModelResolver(state);
-        addRepositories(resolver, activeModel.getRepositories());
-        final Parents parents = new Parents() {
-            @Override
-            public void traverse(Visitor v) {
-                Parent p = activeModel.getParent();
-                MavenProject parentProject = parent == null ? null : parent.get();
-                while (p != null) {
-                    final Result<Model> result = parentProject == null ? resolve(resolver, p.getGroupId(),
-                            p.getArtifactId(), p.getVersion()) : success(parentProject.getOriginalModel());
-                    final ActivatedModel activatedModel = v.visit(result);
-                    final Model activeModel = activatedModel.getActiveModel();
-                    addRepositories(resolver, activeModel.getRepositories());
-                    p = activeModel.getParent();
-                    if (parentProject != null) parentProject = parentProject.getParent();
-                }
-                final ActivatedModel m = v.visit(success(superPomProvider.getSuperModel("4.0.0").clone()));
-                addRepositories(resolver, m.getActiveModel().getRepositories());
-            }
-        };
-        final Result<InterpolatedModel> interpolationResult = modelBuilder.interpolate(activationResult.get(), parents,
+        final ModelResolver resolver = newModelResolver(state, activeModel);
+        final Parents parents = new ParentsImpl(resolver, parent);
+        final Result<InterpolatedModel> interpolationResult = modelBuilder.interpolate(activation.get(), parents,
                 state.request.getValidationLevel(), state.request.getBuildStartTime(),
                 state.request.getSystemProperties(), state.request.getUserProperties());
         if (interpolationResult.hasErrors())
-            throw new RuntimeException("Failed to interpolate model " + id + " - " + interpolationResult.getProblems());
+            return error(project, concat(activation.getProblems(), interpolationResult.getProblems()));
+        addRepositories(resolver, interpolationResult.get().getInterpolatedModel().getRepositories(), true);
 
         // 4. now resolve imports, so we can build the effective model
-        final Result<Iterable<? extends MavenProject>> imports = buildSrcRefs(filterPomImports(interpolationResult
+        final Result<Iterable<? extends MavenProject>> imports = buildDependencies(filterPomImports(interpolationResult
                 .get().getInterpolatedModel().getDependencyManagement().getDependencies()), getDependencyId, state);
         if (imports.hasErrors()) return error(project, imports.getProblems());
         project.setProjectImports(imports.get());
@@ -328,35 +315,77 @@ public class ProjectDependencyGraphBuilder {
         project.setModel(effective.get());
 
         // now that effective model is built, resolve dependencies (incl plugins)
-        final Result<Iterable<? extends MavenProject>> plugins = buildSrcRefs(effective.get().getBuild().getPlugins(),
-                getPluginId, state);
+        final Result<Iterable<? extends MavenProject>> plugins = buildDependencies(effective.get().getBuild()
+                .getPlugins(), getPluginId, state);
         if (plugins.hasErrors()) return error(project, plugins.getProblems());
         project.setProjectPlugins(plugins.get());
 
-        final Result<Iterable<? extends MavenProject>> dependencies = buildSrcRefs(effective.get().getDependencies(),
-                getDependencyId, state);
+        final Result<Iterable<? extends MavenProject>> dependencies = buildDependencies(effective.get()
+                .getDependencies(), getDependencyId, state);
         if (dependencies.hasErrors()) return error(project, dependencies.getProblems());
         project.setProjectDependencies(dependencies.get());
 
         // TODO initialize maven project
 
         return Result.newResult(project,
-                concat(activationResult.getProblems(), interpolationResult.getProblems(), effective.getProblems()));
+                concat(activation.getProblems(), interpolationResult.getProblems(), effective.getProblems()));
     }
 
-    <T> Result<Iterable<? extends MavenProject>> buildSrcRefs(Iterable<T> refs, final Function<T, GA> getId,
-            final BuildState state) {
-        return newResultSet(newArrayList(filter(transform(refs, new Function<T, Result<MavenProject>>() {
+    <T> Result<Iterable<? extends MavenProject>> buildDependencies(Iterable<T> dependencies,
+            final Function<T, GA> getId, final BuildState state) {
+        return newResultSet(newArrayList(filter(transform(dependencies, new Function<T, Result<MavenProject>>() {
             @Override
             public Result<MavenProject> apply(T ref) {
-                return buildSrcRef(ref, getId, state);
+                return buildDependency(ref, getId, state);
             }
         }), notNull())));
     }
 
-    <T> Result<MavenProject> buildSrcRef(T ref, Function<T, GA> getId, BuildState state) {
+    <T> Result<MavenProject> buildDependency(T ref, Function<T, GA> getId, BuildState state) {
         final GA id = getId.apply(ref);
         return state.srcIndex.containsKey(id) || state.binIndex.containsKey(id) ? buildProject(id, state) : null;
+    }
+
+    final class ParentsImpl implements Parents {
+        private final ModelResolver resolver;
+        private final MavenProject parent;
+
+        ParentsImpl(ModelResolver resolver, MavenProject parent) {
+            this.resolver = resolver;
+            this.parent = parent;
+        }
+
+        @Override
+        public Result<? extends Iterable<? extends ActivatedModel>> traverse(Visitor v) {
+            final List<Result<ActivatedModel>> results = newArrayList();
+            final Parent superModelRef = new Parent();
+            MavenProject parentProject = parent;
+            Parent parentRef = parent == null ? superModelRef : parent.getOriginalModel().getParent();
+            while (parentRef != null) {
+                final Result<Model> result;
+                if (parentRef == superModelRef)
+                    result = success(superPomProvider.getSuperModel("4.0.0").clone());
+                else if (parentProject != null)
+                    result = success(parentProject.getOriginalModel());
+                else
+                    result = resolve(resolver, parentRef.getGroupId(), parentRef.getArtifactId(),
+                            parentRef.getVersion());
+
+                final Result<ActivatedModel> activatedModel = v.visit(result);
+                results.add(activatedModel);
+                if (activatedModel.hasErrors()) return newResultSet(results);
+
+                final Model activeModel = activatedModel.get().getActiveModel();
+                addRepositories(resolver, activeModel.getRepositories());
+
+                if (parentRef == superModelRef)
+                    parentRef = null;
+                else
+                    parentRef = activeModel.getParent() == null ? superModelRef : activeModel.getParent();
+                if (parentProject != null) parentProject = parentProject.getParent();
+            }
+            return newResultSet(results);
+        }
     }
 
     // resolution-related methods
@@ -376,9 +405,13 @@ public class ProjectDependencyGraphBuilder {
     }
 
     private void addRepositories(ModelResolver resolver, Iterable<? extends Repository> repositories) {
+        addRepositories(resolver, repositories, false);
+    }
+
+    private void addRepositories(ModelResolver resolver, Iterable<? extends Repository> repositories, boolean replace) {
         for (Repository repository : repositories) {
             try {
-                resolver.addRepository(repository, false);
+                resolver.addRepository(repository, replace);
             } catch (InvalidRepositoryException e) {
                 // TODO handle errors
                 // problems.add(new ModelProblemCollectorRequest(Severity.ERROR, Version.BASE)
@@ -386,6 +419,12 @@ public class ProjectDependencyGraphBuilder {
                 // .setLocation(repository.getLocation("")).setException(e));
             }
         }
+    }
+
+    private ModelResolver newModelResolver(BuildState state, Model model) {
+        final ModelResolver resolver = newModelResolver(state);
+        addRepositories(resolver, model.getRepositories());
+        return resolver;
     }
 
     private ModelResolver newModelResolver(BuildState state) {
