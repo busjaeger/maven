@@ -48,13 +48,8 @@ public class DefaultInheritanceAssembler
 
     private InheritanceModelMerger merger = new InheritanceModelMerger();
 
-    @Override
-    public void assembleModelInheritance(Model child, Model parent, ModelBuildingRequest request,
-            ModelProblemCollector problems) {
-        assembleModelInheritance(child, parent, problems);
-    }
-
-    public void assembleModelInheritance( Model child, Model parent, ModelProblemCollector problems )
+    public void assembleModelInheritance( Model child, Model parent, ModelBuildingRequest request,
+                                          ModelProblemCollector problems )
     {
         Map<Object, Object> hints = new HashMap<Object, Object>();
         hints.put( MavenModelMerger.CHILD_PATH_ADJUSTMENT, getChildPathAdjustment( child, parent ) );

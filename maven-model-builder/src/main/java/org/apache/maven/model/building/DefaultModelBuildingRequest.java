@@ -28,6 +28,7 @@ import java.util.Properties;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.Profile;
 import org.apache.maven.model.resolution.ModelResolver;
+import org.apache.maven.model.resolution.WorkspaceResolver;
 
 /**
  * Collects settings that control building of effective models.
@@ -38,11 +39,11 @@ public class DefaultModelBuildingRequest
     implements ModelBuildingRequest
 {
 
+    private Model rawModel;
+
     private File pomFile;
 
     private ModelSource modelSource;
-
-    private Model rawModel;
 
     private int validationLevel = VALIDATION_LEVEL_STRICT;
 
@@ -70,6 +71,8 @@ public class DefaultModelBuildingRequest
 
     private ModelCache modelCache;
 
+    private WorkspaceResolver workspaceResolver;
+
     /**
      * Creates an empty request.
      */
@@ -86,7 +89,6 @@ public class DefaultModelBuildingRequest
     {
         setPomFile( request.getPomFile() );
         setModelSource( request.getModelSource() );
-        setRawModel(request.getRawModel());
         setValidationLevel( request.getValidationLevel() );
         setProcessPlugins( request.isProcessPlugins() );
         setTwoPhaseBuilding( request.isTwoPhaseBuilding() );
@@ -126,17 +128,6 @@ public class DefaultModelBuildingRequest
     {
         this.modelSource = modelSource;
 
-        return this;
-    }
-
-    @Override
-    public Model getRawModel() {
-        return this.rawModel;
-    }
-
-    @Override
-    public ModelBuildingRequest setRawModel(Model model) {
-        this.rawModel = model;
         return this;
     }
 
@@ -355,6 +346,28 @@ public class DefaultModelBuildingRequest
     {
         this.modelCache = modelCache;
 
+        return this;
+    }
+
+    @Override
+    public Model getRawModel() {
+        return rawModel;
+    }
+
+    @Override
+    public ModelBuildingRequest setRawModel(Model rawModel) {
+        this.rawModel = rawModel;
+        return this;
+    }
+
+    @Override
+    public WorkspaceResolver getWorkspaceResolver() {
+        return workspaceResolver;
+    }
+
+    @Override
+    public ModelBuildingRequest setWorkspaceResolver(WorkspaceResolver workspaceResolver) {
+        this.workspaceResolver = workspaceResolver;
         return this;
     }
 

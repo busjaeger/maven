@@ -49,11 +49,6 @@ public class DefaultModelNormalizer
 
     public void mergeDuplicates( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
     {
-        mergeDuplicates(model, problems);
-    }
-
-    public void mergeDuplicates( Model model, ModelProblemCollector problems )
-    {
         Build build = model.getBuild();
         if ( build != null )
         {
@@ -109,14 +104,7 @@ public class DefaultModelNormalizer
 
     }
 
-    @Override
-    public void injectDefaultValues(Model model, ModelBuildingRequest request, ModelProblemCollector problems)
-    {
-        injectDefaultValues(model);
-    }
-
-    @Override
-    public void injectDefaultValues( Model model )
+    public void injectDefaultValues( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
     {
         injectDependencyDefaults( model.getDependencies() );
 

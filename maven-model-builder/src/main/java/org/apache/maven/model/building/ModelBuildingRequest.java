@@ -27,6 +27,7 @@ import java.util.Properties;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.Profile;
 import org.apache.maven.model.resolution.ModelResolver;
+import org.apache.maven.model.resolution.WorkspaceResolver;
 
 /**
  * Collects settings that control the building of effective models.
@@ -64,6 +65,20 @@ public interface ModelBuildingRequest
     int VALIDATION_LEVEL_STRICT = VALIDATION_LEVEL_MAVEN_3_0;
 
     /**
+     * Gets the raw model to build. If not set, model source will be used to load raw model.
+     * 
+     * @return The raw model to build or {@code null} if not set.
+     */
+    Model getRawModel();
+
+    /**
+     * Set raw model.
+     *
+     * @param model
+     */
+    ModelBuildingRequest setRawModel(Model rawModel);
+
+    /**
      * Gets the source of the POM to process.
      *
      * @return The source of the POM or {@code null} if not set.
@@ -99,22 +114,6 @@ public interface ModelBuildingRequest
      * @return This request, never {@code null}.
      */
     ModelBuildingRequest setPomFile( File pomFile );
-
-    /**
-     * Gets the raw model.
-     * 
-     * @return
-     */
-    Model getRawModel();
-
-    /**
-     * Sets the raw model if it has already be loaded prior to calling the model builder. If present, it will be used
-     * instead of model source or pom file parameters and parsing will be skipped.
-     * 
-     * @param model
-     * @return This request, never {@code null}
-     */
-    ModelBuildingRequest setRawModel(Model model);
 
     /**
      * Gets the level of validation to perform on processed models.
@@ -331,5 +330,9 @@ public interface ModelBuildingRequest
      * @return This request, never {@code null}.
      */
     ModelBuildingRequest setModelCache( ModelCache modelCache );
+
+    WorkspaceResolver getWorkspaceResolver();
+
+    ModelBuildingRequest setWorkspaceResolver(WorkspaceResolver workspaceResolver);
 
 }

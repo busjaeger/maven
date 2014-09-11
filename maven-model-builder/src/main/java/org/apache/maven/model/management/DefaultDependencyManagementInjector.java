@@ -45,14 +45,7 @@ public class DefaultDependencyManagementInjector
 
     private ManagementModelMerger merger = new ManagementModelMerger();
 
-    @Override
-    public void injectManagement(Model model, ModelBuildingRequest request, ModelProblemCollector problems)
-    {
-        injectManagement(model);
-    }
-
-    @Override
-    public void injectManagement( Model model )
+    public void injectManagement( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
     {
         merger.mergeManagedDependencies( model );
     }

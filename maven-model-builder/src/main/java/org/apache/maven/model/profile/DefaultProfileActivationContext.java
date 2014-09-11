@@ -19,8 +19,6 @@ package org.apache.maven.model.profile;
  * under the License.
  */
 
-import static com.google.common.collect.Maps.fromProperties;
-
 import java.io.File;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -28,8 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-
-import org.apache.maven.model.Model;
 
 /**
  * Describes the environmental context used to determine the activation status of profiles.
@@ -40,52 +36,22 @@ public class DefaultProfileActivationContext
     implements ProfileActivationContext
 {
 
-    public static ProfileActivationContext pac(ExternalProfileActivationContext epac, Model model) {
-        return new DefaultProfileActivationContext(epac.getActiveProfileIds(), epac.getInactiveProfileIds(),
-                fromProperties(epac.getSystemProperties()), fromProperties(epac.getUserProperties()),
-                fromProperties(model.getProperties()), model.getPomFile().getParentFile());
-    }
+    private List<String> activeProfileIds = Collections.emptyList();
 
-    public static ProfileActivationContext pac(ProfileActivationContext pac, Properties projectProperties) {
-        return new DefaultProfileActivationContext(pac.getActiveProfileIds(), pac.getInactiveProfileIds(),
-                pac.getSystemProperties(), pac.getUserProperties(), fromProperties(projectProperties),
-                pac.getProjectDirectory());
-    }
+    private List<String> inactiveProfileIds = Collections.emptyList();
 
-    private List<String> activeProfileIds;
+    private Map<String, String> systemProperties = Collections.emptyMap();
 
-    private List<String> inactiveProfileIds;
+    private Map<String, String> userProperties = Collections.emptyMap();
 
-    private Map<String, String> systemProperties;
-
-    private Map<String, String> userProperties;
-
-    private Map<String, String> projectProperties;
+    private Map<String, String> projectProperties = Collections.emptyMap();
 
     private File projectDirectory;
 
     public List<String> getActiveProfileIds()
     {
         return activeProfileIds;
-    }    
-
-    public DefaultProfileActivationContext() {
-        this(Collections.<String> emptyList(), Collections.<String> emptyList(), Collections
-                .<String, String> emptyMap(), Collections.<String, String> emptyMap(), Collections
-                .<String, String> emptyMap(), null);
     }
-
-    public DefaultProfileActivationContext(List<String> activeProfileIds, List<String> inactiveProfileIds,
-            Map<String, String> systemProperties, Map<String, String> userProperties,
-            Map<String, String> projectProperties, File projectDirectory) {
-        this.activeProfileIds = activeProfileIds;
-        this.inactiveProfileIds = inactiveProfileIds;
-        this.systemProperties = systemProperties;
-        this.userProperties = userProperties;
-        this.projectProperties = projectProperties;
-        this.projectDirectory = projectDirectory;
-    }
-
 
     /**
      * Sets the identifiers of those profiles that should be activated by explicit demand.
