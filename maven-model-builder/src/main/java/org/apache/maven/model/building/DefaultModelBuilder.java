@@ -259,7 +259,7 @@ public class DefaultModelBuilder
         }
 
         Model inputModel = request.getRawModel();
-        if (inputModel == null)
+        if ( inputModel == null )
             inputModel = readModel( request.getModelSource(), request.getPomFile(), request, problems );
 
         problems.setRootModel( inputModel );
@@ -278,7 +278,7 @@ public class DefaultModelBuilder
             currentData.setRawModel( rawModel );
 
             Model tmpModel = rawModel.clone();
-            currentData.setModel(tmpModel);
+            currentData.setModel( tmpModel );
 
             problems.setSource( tmpModel );
 
@@ -457,15 +457,19 @@ public class DefaultModelBuilder
     }
 
     @Override
-    public Result<? extends Model> buildRawModel(File pomFile, int validationLevel, boolean locationTracking) {
-        final ModelBuildingRequest request = new DefaultModelBuildingRequest().setValidationLevel(validationLevel)
-                .setLocationTracking(locationTracking);
+    public Result<? extends Model> buildRawModel( File pomFile, int validationLevel, boolean locationTracking )
+    {
+        final ModelBuildingRequest request = new DefaultModelBuildingRequest().setValidationLevel( validationLevel )
+            .setLocationTracking( locationTracking );
         final DefaultModelProblemCollector collector = new DefaultModelProblemCollector(
-                new DefaultModelBuildingResult());
-        try {
-            return newResult(readModel(null, pomFile, request, collector), collector.getProblems());
-        } catch (ModelBuildingException e) {
-            return error(collector.getProblems());
+                                                                                         new DefaultModelBuildingResult() );
+        try
+        {
+            return newResult( readModel( null, pomFile, request, collector ), collector.getProblems() );
+        }
+        catch ( ModelBuildingException e )
+        {
+            return error( collector.getProblems() );
         }
     }
 
@@ -820,7 +824,8 @@ public class DefaultModelBuilder
         final ModelSource candidateSource;
         final Model candidateModel;
         final WorkspaceResolver resolver = request.getWorkspaceResolver();
-        if (resolver == null) { 
+        if ( resolver == null )
+        {
             candidateSource = getParentPomFile( childModel, childSource );
 
             if ( candidateSource == null )
@@ -835,19 +840,24 @@ public class DefaultModelBuilder
             }
 
             candidateModel = readModel( candidateSource, pomFile, request, problems );
-        } else {
+        }
+        else
+        {
             final Model m;
-            try {
-                m = resolver.resolveRawModel(parent.getGroupId(), parent.getArtifactId(),
-                        parent.getVersion());
-            } catch (UnresolvableModelException e) {
-                problems.add(new ModelProblemCollectorRequest(Severity.FATAL, Version.BASE)
-                        .setMessage(e.getMessage().toString()).setLocation(parent.getLocation("")).setException(e));
+            try
+            {
+                m = resolver.resolveRawModel( parent.getGroupId(), parent.getArtifactId(), parent.getVersion() );
+            }
+            catch ( UnresolvableModelException e )
+            {
+                problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.BASE )
+                    .setMessage( e.getMessage().toString() ).setLocation( parent.getLocation( "" ) ).setException( e ) );
                 throw problems.newModelBuildingException();
             }
-            if (m == null) return null;
+            if ( m == null )
+                return null;
             candidateModel = m.clone(); // clone since it will be modified
-            candidateSource = new FileModelSource(candidateModel.getPomFile());
+            candidateSource = new FileModelSource( candidateModel.getPomFile() );
         }
 
         String groupId = candidateModel.getGroupId();
@@ -1104,15 +1114,21 @@ public class DefaultModelBuilder
                 }
 
                 final Model importModel;
-                if (workspaceResolver != null) {
-                    try {
-                        importModel = workspaceResolver.resolveEffectiveModel(groupId, artifactId, version);
-                    } catch (UnresolvableModelException e) {
-                        problems.add(new ModelProblemCollectorRequest(Severity.FATAL, Version.BASE)
-                        .setMessage(e.getMessage().toString()).setException(e));
+                if ( workspaceResolver != null )
+                {
+                    try
+                    {
+                        importModel = workspaceResolver.resolveEffectiveModel( groupId, artifactId, version );
+                    }
+                    catch ( UnresolvableModelException e )
+                    {
+                        problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.BASE )
+                            .setMessage( e.getMessage().toString() ).setException( e ) );
                         continue;
                     }
-                } else {
+                }
+                else
+                {
                     final ModelSource importSource;
                     try
                     {

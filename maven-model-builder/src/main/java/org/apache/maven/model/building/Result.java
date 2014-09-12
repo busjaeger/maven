@@ -29,7 +29,8 @@ import com.google.common.base.Predicates;
  * @author bbusjaeger
  * @param <T>
  */
-public class Result<T> {
+public class Result<T>
+{
 
     /**
      * Success without warnings
@@ -37,8 +38,9 @@ public class Result<T> {
      * @param model
      * @return
      */
-    public static <T> Result<T> success(T model) {
-        return success(model, Collections.<ModelProblem> emptyList());
+    public static <T> Result<T> success( T model )
+    {
+        return success( model, Collections.<ModelProblem> emptyList() );
     }
 
     /**
@@ -48,9 +50,10 @@ public class Result<T> {
      * @param problems
      * @return
      */
-    public static <T> Result<T> success(T model, Iterable<? extends ModelProblem> problems) {
-        assert !hasErrors(problems);
-        return new Result<T>(false, model, problems);
+    public static <T> Result<T> success( T model, Iterable<? extends ModelProblem> problems )
+    {
+        assert !hasErrors( problems );
+        return new Result<T>( false, model, problems );
     }
 
     /**
@@ -59,12 +62,14 @@ public class Result<T> {
      * @param problems
      * @return
      */
-    public static <T> Result<T> error(Iterable<? extends ModelProblem> problems) {
-        return error(null, problems);
+    public static <T> Result<T> error( Iterable<? extends ModelProblem> problems )
+    {
+        return error( null, problems );
     }
 
-    public static <T> Result<T> error(T model) {
-        return error(model, Collections.<ModelProblem> emptyList());
+    public static <T> Result<T> error( T model )
+    {
+        return error( model, Collections.<ModelProblem> emptyList() );
     }
 
     /**
@@ -74,8 +79,9 @@ public class Result<T> {
      * @param problems
      * @return
      */
-    public static <T> Result<T> error(T model, Iterable<? extends ModelProblem> problems) {
-        return new Result<T>(true, model, problems);
+    public static <T> Result<T> error( T model, Iterable<? extends ModelProblem> problems )
+    {
+        return new Result<T>( true, model, problems );
     }
 
     /**
@@ -85,8 +91,9 @@ public class Result<T> {
      * @param problems
      * @return
      */
-    public static <T> Result<T> newResult(T model, Iterable<? extends ModelProblem> problems) {
-        return new Result<T>(hasErrors(problems), model, problems);
+    public static <T> Result<T> newResult( T model, Iterable<? extends ModelProblem> problems )
+    {
+        return new Result<T>( hasErrors( problems ), model, problems );
     }
 
     /**
@@ -97,8 +104,9 @@ public class Result<T> {
      * @param problem
      * @return
      */
-    public static <T> Result<T> addProblem(Result<T> result, ModelProblem problem) {
-        return addProblems(result, singleton(problem));
+    public static <T> Result<T> addProblem( Result<T> result, ModelProblem problem )
+    {
+        return addProblems( result, singleton( problem ) );
     }
 
     /**
@@ -108,9 +116,10 @@ public class Result<T> {
      * @param problems
      * @return
      */
-    public static <T> Result<T> addProblems(Result<T> result, Iterable<? extends ModelProblem> problems) {
-        return new Result<T>(result.hasErrors() || hasErrors(problems), result.get(), concat(result.getProblems(),
-                problems));
+    public static <T> Result<T> addProblems( Result<T> result, Iterable<? extends ModelProblem> problems )
+    {
+        return new Result<T>( result.hasErrors() || hasErrors( problems ), result.get(), concat( result.getProblems(),
+                                                                                                 problems ) );
     }
 
     /**
@@ -119,37 +128,47 @@ public class Result<T> {
      * @param results
      * @return
      */
-    public static <T> Result<Iterable<T>> newResultSet(Iterable<? extends Result<? extends T>> results) {
-        final boolean hasErrors = any(transform(results, new Function<Result<?>, Boolean>() {
+    public static <T> Result<Iterable<T>> newResultSet( Iterable<? extends Result<? extends T>> results )
+    {
+        final boolean hasErrors = any( transform( results, new Function<Result<?>, Boolean>()
+        {
             @Override
-            public Boolean apply(Result<?> input) {
+            public Boolean apply( Result<?> input )
+            {
                 return input.hasErrors();
             }
-        }), Predicates.equalTo(true));
-        final Iterable<T> models = transform(results, new Function<Result<? extends T>, T>() {
+        } ), Predicates.equalTo( true ) );
+        final Iterable<T> models = transform( results, new Function<Result<? extends T>, T>()
+        {
             @Override
-            public T apply(Result<? extends T> input) {
+            public T apply( Result<? extends T> input )
+            {
                 return input.get();
             }
-        });
-        final Iterable<ModelProblem> problems = concat(transform(results,
-                new Function<Result<?>, Iterable<? extends ModelProblem>>() {
-                    @Override
-                    public Iterable<? extends ModelProblem> apply(Result<?> input) {
-                        return input.getProblems();
-                    }
-                }));
-        return new Result<Iterable<T>>(hasErrors, models, problems);
+        } );
+        final Iterable<ModelProblem> problems = concat( transform( results,
+                                                                   new Function<Result<?>, Iterable<? extends ModelProblem>>()
+                                                                   {
+                                                                       @Override
+                                                                       public Iterable<? extends ModelProblem> apply( Result<?> input )
+                                                                       {
+                                                                           return input.getProblems();
+                                                                       }
+                                                                   } ) );
+        return new Result<Iterable<T>>( hasErrors, models, problems );
     }
 
     // helper to determine if problems contain error
-    private static boolean hasErrors(Iterable<? extends ModelProblem> problems) {
-        return any(transform(problems, new Function<ModelProblem, Severity>() {
+    private static boolean hasErrors( Iterable<? extends ModelProblem> problems )
+    {
+        return any( transform( problems, new Function<ModelProblem, Severity>()
+        {
             @Override
-            public Severity apply(ModelProblem input) {
+            public Severity apply( ModelProblem input )
+            {
                 return input.getSeverity();
             }
-        }), in(of(ERROR, FATAL)));
+        } ), in( of( ERROR, FATAL ) ) );
     }
 
     /**
@@ -157,24 +176,30 @@ public class Result<T> {
      */
 
     private final boolean errors;
+
     private final T value;
+
     private final Iterable<? extends ModelProblem> problems;
 
-    private Result(boolean errors, T model, Iterable<? extends ModelProblem> problems) {
+    private Result( boolean errors, T model, Iterable<? extends ModelProblem> problems )
+    {
         this.errors = errors;
         this.value = model;
         this.problems = problems;
     }
 
-    public Iterable<? extends ModelProblem> getProblems() {
+    public Iterable<? extends ModelProblem> getProblems()
+    {
         return problems;
     }
 
-    public T get() {
+    public T get()
+    {
         return value;
     }
 
-    public boolean hasErrors() {
+    public boolean hasErrors()
+    {
         return errors;
     }
 

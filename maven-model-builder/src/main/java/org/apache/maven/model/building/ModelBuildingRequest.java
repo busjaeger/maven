@@ -76,7 +76,7 @@ public interface ModelBuildingRequest
      *
      * @param model
      */
-    ModelBuildingRequest setRawModel(Model rawModel);
+    ModelBuildingRequest setRawModel( Model rawModel );
 
     /**
      * Gets the source of the POM to process.
@@ -333,6 +333,6 @@ public interface ModelBuildingRequest
 
     WorkspaceResolver getWorkspaceResolver();
 
-    ModelBuildingRequest setWorkspaceResolver(WorkspaceResolver workspaceResolver);
+    ModelBuildingRequest setWorkspaceResolver( WorkspaceResolver workspaceResolver );
 
 }

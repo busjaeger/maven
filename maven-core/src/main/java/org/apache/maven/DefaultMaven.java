@@ -253,15 +253,15 @@ public class DefaultMaven
 
         eventCatapult.fire( ExecutionEvent.Type.ProjectDiscoveryStarted, session, null );
 
-        final Result<? extends ProjectDependencyGraph> graphResult = projectGraphBuilder.build(session);
-        for (ModelProblem problem : graphResult.getProblems())
-            if (problem.getSeverity() == Severity.WARNING)
-                logger.warn(problem.toString());
+        final Result<? extends ProjectDependencyGraph> graphResult = projectGraphBuilder.build( session );
+        for ( ModelProblem problem : graphResult.getProblems() )
+            if ( problem.getSeverity() == Severity.WARNING )
+                logger.warn( problem.toString() );
             else
-                logger.error(problem.toString());
-        if (graphResult.hasErrors())
-            return addExceptionToResult(result,
-                    new ProjectBuildingException(Collections.<ProjectBuildingResult> emptyList()));
+                logger.error( problem.toString() );
+        if ( graphResult.hasErrors() )
+            return addExceptionToResult( result,
+                                         new ProjectBuildingException( Collections.<ProjectBuildingResult> emptyList() ) );
         final ProjectDependencyGraph projectDependencyGraph = graphResult.get();
 
 //        List<MavenProject> projects;

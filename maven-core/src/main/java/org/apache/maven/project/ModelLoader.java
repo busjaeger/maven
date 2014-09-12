@@ -34,7 +34,8 @@ import org.codehaus.plexus.component.annotations.Requirement;
  * @author bbusjaeger
  */
 @Component(role = ModelLoader.class)
-public class ModelLoader {
+public class ModelLoader
+{
 
     @Requirement
     private ModelLocator modelLocator;
@@ -52,20 +53,24 @@ public class ModelLoader {
      * @throws ModelParseException
      * @throws IOException
      */
-    public Result<Iterable<Model>> loadModules(File pom) {
+    public Result<Iterable<Model>> loadModules( File pom )
+    {
         final Loader loader = new Loader();
-        loader.loadModules(pom);
-        return newResultSet(loader.results);
+        loader.loadModules( pom );
+        return newResultSet( loader.results );
     }
 
     /**
      * Encapsulates the mutable state during the loading process
      */
-    class Loader {
+    class Loader
+    {
         private final Set<File> visited;
+
         private final Collection<Result<? extends Model>> results;
 
-        public Loader() {
+        public Loader()
+        {
             this.visited = newHashSet();
             this.results = newArrayList();
         }
@@ -75,37 +80,44 @@ public class ModelLoader {
          * 
          * @param pom
          */
-        boolean loadModules(File pom) {
-            if (!visited.add(pom)) return false;
+        boolean loadModules( File pom )
+        {
+            if ( !visited.add( pom ) )
+                return false;
 
-            final Result<? extends Model> result = modelBuilder.buildRawModel(pom, VALIDATION_LEVEL_STRICT, true);
+            final Result<? extends Model> result = modelBuilder.buildRawModel( pom, VALIDATION_LEVEL_STRICT, true );
 
             final Model model = result.get();
             // model completely failed to load, use result
-            if (model == null) {
-                results.add(result);
+            if ( model == null )
+            {
+                results.add( result );
             }
             // otherwise, try to traverse modules (even if result has errors)
-            else {
+            else
+            {
                 final Collection<ModelProblem> problems = newArrayList();
-                for (String module : model.getModules()) {
-                    final File modulePom = getModulePomFile(pom, module);
+                for ( String module : model.getModules() )
+                {
+                    final File modulePom = getModulePomFile( pom, module );
 
-                    if (modulePom == null) {
-                        problems.add(new DefaultModelProblem("Child module " + modulePom + " of " + pom
-                                + " does not exist", ERROR, BASE, model, -1, -1, null));
+                    if ( modulePom == null )
+                    {
+                        problems.add( new DefaultModelProblem( "Child module " + modulePom + " of " + pom
+                            + " does not exist", ERROR, BASE, model, -1, -1, null ) );
                         continue;
                     }
 
-                    if (!loadModules(modulePom)) {
-                        problems.add(new DefaultModelProblem("Child module " + modulePom + " of " + pom
-                                + " forms aggregation cycle " + on(" -> ").join(visited), ERROR, BASE, model, -1, -1,
-                                null));
-                        visited.remove(modulePom);
+                    if ( !loadModules( modulePom ) )
+                    {
+                        problems.add( new DefaultModelProblem( "Child module " + modulePom + " of " + pom
+                            + " forms aggregation cycle " + on( " -> " ).join( visited ), ERROR, BASE, model, -1, -1,
+                                                               null ) );
+                        visited.remove( modulePom );
                         continue;
                     }
                 }
-                results.add(addProblems(result, problems));
+                results.add( addProblems( result, problems ) );
             }
             return true;
         }
@@ -118,11 +130,12 @@ public class ModelLoader {
          * @param module
          * @return
          */
-        File getModulePomFile(File pom, String module) {
-            final File moduleFile = new File(pom.getParentFile(), module.replace('\\', separatorChar).replace('/',
-                    separatorChar));
-            return moduleFile.isFile() ? moduleFile : (moduleFile.isDirectory() ? modelLocator.locatePom(moduleFile)
-                    : null);
+        File getModulePomFile( File pom, String module )
+        {
+            final File moduleFile = new File( pom.getParentFile(), module.replace( '\\', separatorChar )
+                .replace( '/', separatorChar ) );
+            return moduleFile.isFile() ? moduleFile : ( moduleFile.isDirectory() ? modelLocator.locatePom( moduleFile )
+                                                                                : null );
         }
     }
 

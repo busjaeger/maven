@@ -91,8 +91,8 @@ import com.google.common.collect.Sets;
  * @author bbusjaeger
  */
 @Component(role = ProjectDependencyGraphBuilder.class)
-public class ProjectDependencyGraphBuilder {
-
+public class ProjectDependencyGraphBuilder
+{
     @Requirement
     private ModelLoader modelLoader;
 
@@ -117,56 +117,69 @@ public class ProjectDependencyGraphBuilder {
     @Requirement
     private MavenRepositorySystem repositorySystem;
 
-    public Result<? extends ProjectDependencyGraph> build(MavenSession session) {
+    public Result<? extends ProjectDependencyGraph> build( MavenSession session )
+    {
         final MavenExecutionRequest request = session.getRequest();
 
         // 1. load all models
-        final Result<Iterable<Model>> result = modelLoader.loadModules(request.getPom());
+        final Result<Iterable<Model>> result = modelLoader.loadModules( request.getPom() );
 
         // if we cannot build the model index, do not continue
-        if (result.hasErrors()) return error(result.getProblems());
+        if ( result.hasErrors() )
+            return error( result.getProblems() );
 
         // 2. index by Id: throws IllegalArgumentException if multiple projects with same ID
         final Map<GA, ? extends Model> srcIndex;
-        try {
-            srcIndex = Maps.uniqueIndex(result.get(), getId);
-        } catch (IllegalArgumentException e) {
-            return error(Collections.singleton(new DefaultModelProblem("Duplicate project identifiers: "
-                    + e.getMessage(), FATAL, BASE, "", -1, -1, null, e)));
+        try
+        {
+            srcIndex = Maps.uniqueIndex( result.get(), getId );
+        }
+        catch ( IllegalArgumentException e )
+        {
+            return error( Collections.singleton( new DefaultModelProblem( "Duplicate project identifiers: "
+                + e.getMessage(), FATAL, BASE, "", -1, -1, null, e ) ) );
         }
 
         // 3. determine selected projects based on '--projects'
-        final Set<GA> selected = modelSelector.select(new File(request.getBaseDirectory()),
-                request.getSelectedProjects(), srcIndex).keySet();
+        final Set<GA> selected = modelSelector.select( new File( request.getBaseDirectory() ),
+                                                       request.getSelectedProjects(), srcIndex ).keySet();
 
         // TODO load from generation
         final Map<GA, ? extends Model> binIndex = Collections.emptyMap();
 
-        final Projects projects = new Projects(selected, srcIndex, binIndex, request.getProjectBuildingRequest()
-                .setRepositorySession(session.getRepositorySession()));
-        for (GA ga : srcIndex.keySet())
-            buildProject(ga, projects);
+        final Projects projects = new Projects( selected, srcIndex, binIndex, request.getProjectBuildingRequest()
+            .setRepositorySession( session.getRepositorySession() ) );
+        for ( GA ga : srcIndex.keySet() )
+            buildProject( ga, projects );
 
-        final Result<Iterable<MavenProject>> results = newResultSet(projects.completed.values());
-        if (results.hasErrors()) return error(results.getProblems());
+        final Result<Iterable<MavenProject>> results = newResultSet( projects.completed.values() );
+        if ( results.hasErrors() )
+            return error( results.getProblems() );
 
-        return success(newPDG(results.get()), result.getProblems());
+        return success( newPDG( results.get() ), result.getProblems() );
     }
 
-    class Projects implements WorkspaceResolver, Predicate<GA> {
+    class Projects
+        implements WorkspaceResolver, Predicate<GA>
+    {
 
         // immutable
         final Set<GA> selectedForSrc;
+
         final Map<GA, ? extends Model> srcIndex;
+
         final Map<GA, ? extends Model> binIndex;
+
         final ProjectBuildingRequest request;
 
         // mutable
         final Map<GA, Result<MavenProject>> completed;
+
         final Set<GA> building;
 
-        public Projects(Set<GA> selected, Map<GA, ? extends Model> srcModels, Map<GA, ? extends Model> binModels,
-                ProjectBuildingRequest request) {
+        public Projects( Set<GA> selected, Map<GA, ? extends Model> srcModels, Map<GA, ? extends Model> binModels,
+                         ProjectBuildingRequest request )
+        {
             this.selectedForSrc = selected;
             this.srcIndex = srcModels;
             this.binIndex = binModels;
@@ -179,59 +192,69 @@ public class ProjectDependencyGraphBuilder {
         }
 
         @Override
-        public Model resolveRawModel(String groupId, String artifactId, String version)
-                throws UnresolvableModelException {
-            final MavenProject project = resolve(groupId, artifactId, version);
+        public Model resolveRawModel( String groupId, String artifactId, String version )
+            throws UnresolvableModelException
+        {
+            final MavenProject project = resolve( groupId, artifactId, version );
             return project == null ? null : project.getOriginalModel();
         }
 
         @Override
-        public Model resolveEffectiveModel(String groupId, String artifactId, String version)
-                throws UnresolvableModelException {
-            final MavenProject project = resolve(groupId, artifactId, version);
+        public Model resolveEffectiveModel( String groupId, String artifactId, String version )
+            throws UnresolvableModelException
+        {
+            final MavenProject project = resolve( groupId, artifactId, version );
             return project == null ? null : project.getModel();
         }
 
-        private MavenProject resolve(String groupId, String artifactId, String version)
-                throws UnresolvableModelException {
-            final GA id = new GA(groupId, artifactId);
-            if (!isProject(id)) return null;
-            final Result<MavenProject> project = completed.get(id);
-            if (project == null)
-                throw new RuntimeException("Assertion violated: project " + id + " has not completed build");
-            if (project.hasErrors())
-                throw new UnresolvableModelException("Parent failed to build", groupId, artifactId, version);
+        private MavenProject resolve( String groupId, String artifactId, String version )
+            throws UnresolvableModelException
+        {
+            final GA id = new GA( groupId, artifactId );
+            if ( !isProject( id ) )
+                return null;
+            final Result<MavenProject> project = completed.get( id );
+            if ( project == null )
+                throw new RuntimeException( "Assertion violated: project " + id + " has not completed build" );
+            if ( project.hasErrors() )
+                throw new UnresolvableModelException( "Parent failed to build", groupId, artifactId, version );
             // TODO validate version
             return project.get();
         }
 
-        boolean isProject(GA id) {
-            return srcIndex.containsKey(id) || binIndex.containsKey(id);
+        boolean isProject( GA id )
+        {
+            return srcIndex.containsKey( id ) || binIndex.containsKey( id );
         }
 
         @Override
-        public boolean apply(GA id) {
-            return isProject(id);
+        public boolean apply( GA id )
+        {
+            return isProject( id );
         }
 
-        ModelBuildingRequest newModelBuildingRequest(MavenProject project) {
+        ModelBuildingRequest newModelBuildingRequest( MavenProject project )
+        {
             final ModelBuildingRequest mbr = new DefaultModelBuildingRequest();
-            mbr.setValidationLevel(request.getValidationLevel());
-            mbr.setProcessPlugins(request.isProcessPlugins());
-            mbr.setProfiles(request.getProfiles());
-            mbr.setActiveProfileIds(request.getActiveProfileIds());
-            mbr.setInactiveProfileIds(request.getInactiveProfileIds());
-            mbr.setSystemProperties(request.getSystemProperties());
-            mbr.setUserProperties(request.getUserProperties());
-            mbr.setBuildStartTime(request.getBuildStartTime());
-            mbr.setWorkspaceResolver(this);
-            mbr.setTwoPhaseBuilding(true);
-            mbr.setProcessPlugins(true);
-            mbr.setModelResolver(new ProjectModelResolver(overlay(request.getLocalRepository(),
-                    request.getRepositorySession(), repoSystem), newChild(null, request).newChild(mbr), repoSystem,
-                    repositoryManager, toRepos(request.getRemoteRepositories()), request.getRepositoryMerging(), null));
-            mbr.setModelBuildingListener(new DefaultModelBuildingListener(project, projectBuildingHelper, request));
-            mbr.setRawModel(project.getOriginalModel());
+            mbr.setValidationLevel( request.getValidationLevel() );
+            mbr.setProcessPlugins( request.isProcessPlugins() );
+            mbr.setProfiles( request.getProfiles() );
+            mbr.setActiveProfileIds( request.getActiveProfileIds() );
+            mbr.setInactiveProfileIds( request.getInactiveProfileIds() );
+            mbr.setSystemProperties( request.getSystemProperties() );
+            mbr.setUserProperties( request.getUserProperties() );
+            mbr.setBuildStartTime( request.getBuildStartTime() );
+            mbr.setWorkspaceResolver( this );
+            mbr.setTwoPhaseBuilding( true );
+            mbr.setProcessPlugins( true );
+            mbr.setModelResolver( new ProjectModelResolver( overlay( request.getLocalRepository(),
+                                                                     request.getRepositorySession(), repoSystem ),
+                                                            newChild( null, request ).newChild( mbr ), repoSystem,
+                                                            repositoryManager,
+                                                            toRepos( request.getRemoteRepositories() ), request
+                                                                .getRepositoryMerging(), null ) );
+            mbr.setModelBuildingListener( new DefaultModelBuildingListener( project, projectBuildingHelper, request ) );
+            mbr.setRawModel( project.getOriginalModel() );
             return mbr;
         }
 
@@ -245,67 +268,83 @@ public class ProjectDependencyGraphBuilder {
      * @param projects
      * @return
      */
-    Result<MavenProject> buildProject(GA id, Projects projects) {
+    Result<MavenProject> buildProject( GA id, Projects projects )
+    {
         // if the project is already built, return it
-        final Result<MavenProject> existing = projects.completed.get(id);
-        if (existing != null) return existing;
+        final Result<MavenProject> existing = projects.completed.get( id );
+        if ( existing != null )
+            return existing;
 
         /*
          * If we are currently building this project and traverse back to it via some dependency, we must have a cycle.
          * Failing here maintains the invariant that the project graph is a DAG, because any newly added project refers
          * only to projects already in the DAG. In other words, no back-edges are added.
          */
-        if (!projects.building.add(id))
-            throw new IllegalArgumentException("Project dependency cycle detected " + projects.building);
+        if ( !projects.building.add( id ) )
+            throw new IllegalArgumentException( "Project dependency cycle detected " + projects.building );
 
         final Result<MavenProject> result;
 
-        final Model srcModel = projects.srcIndex.get(id);
+        final Model srcModel = projects.srcIndex.get( id );
         /*
          * If we recurse via a binary project's dependency, the project targeted by the dependency may not be available
          * in source form. For example, say A -> B in source, A -> B -> C in binary, and A is selected. Then building
          * the binary project B will trigger building C, which exists only in binary form.
          */
-        if (srcModel == null) {
+        if ( srcModel == null )
+        {
             // selected IDs are computed from the source projects, so they should never contains binary-only project
-            assert !projects.selectedForSrc.contains(id);
+            assert !projects.selectedForSrc.contains( id );
 
-            final Model binModel = projects.binIndex.get(id);
+            final Model binModel = projects.binIndex.get( id );
 
             // this method must only be called for IDs that are either in the source or binary project set
             assert binModel != null;
 
-            final Result<MavenProject> binProject = buildProject(false, binModel, projects);
-            if (binProject.get().hasSourceDependency())
+            final Result<MavenProject> binProject = buildProject( false, binModel, projects );
+            if ( binProject.get().hasSourceDependency() )
                 // TODO strategy: 1. use binary project anyway, 2. fail with no src avail, 3. fail (currently 2)
-                result = addProblem(binProject, new DefaultModelProblem("Binary project " + id
-                        + " refers to a source project, but no source project with same id available to use instead",
-                        FATAL, BASE, binProject.get().getModel(), -1, -1, null));
+                result = addProblem( binProject, new DefaultModelProblem( "Binary project " + id
+                    + " refers to a source project, but no source project with same id available to use instead",
+                                                                          FATAL, BASE, binProject.get().getModel(), -1,
+                                                                          -1, null ) );
             else
                 result = binProject;
         }
         /*
          * If a source project exists, we build it first to determine whether it has source dependencies
          */
-        else {
-            final Result<MavenProject> srcProject = buildProject(true, srcModel, projects);
-            if (projects.selectedForSrc.contains(id)) {
+        else
+        {
+            final Result<MavenProject> srcProject = buildProject( true, srcModel, projects );
+            if ( projects.selectedForSrc.contains( id ) )
+            {
                 result = srcProject;
-            } else if (srcProject.get().hasSourceDependency()) {
+            }
+            else if ( srcProject.get().hasSourceDependency() )
+            {
                 // log that project in source mode, because it depends on source project
                 result = srcProject;
-            } else {
-                final Model binModel = projects.binIndex.get(id);
-                if (binModel == null) {
+            }
+            else
+            {
+                final Model binModel = projects.binIndex.get( id );
+                if ( binModel == null )
+                {
                     // log that project in source, because no binary project exists
                     result = srcProject;
-                } else {
-                    final Result<MavenProject> binProject = buildProject(false, binModel, projects);
-                    if (binProject.get().hasSourceDependency()) {
+                }
+                else
+                {
+                    final Result<MavenProject> binProject = buildProject( false, binModel, projects );
+                    if ( binProject.get().hasSourceDependency() )
+                    {
                         // log that project in source, because binary project depends on source project
                         // TODO strategy: 1. use binary project anyway, 2. use source project, 3. fail (currently 2)
                         result = srcProject;
-                    } else {
+                    }
+                    else
+                    {
                         // log that project in binary, because it does not depend on source projects
                         result = binProject;
                     }
@@ -314,249 +353,303 @@ public class ProjectDependencyGraphBuilder {
         }
 
         // at this point all project dependencies are in the graph, so this project can be added as well
-        projects.completed.put(id, result);
+        projects.completed.put( id, result );
 
         // the project is unmarked, since it is now part of the graph
-        projects.building.remove(id);
+        projects.building.remove( id );
 
         return result;
     }
 
     // returns partially applied function
-    Function<GA, Result<MavenProject>> buildProject(final Projects projects) {
-        return new Function<GA, Result<MavenProject>>() {
+    Function<GA, Result<MavenProject>> buildProject( final Projects projects )
+    {
+        return new Function<GA, Result<MavenProject>>()
+        {
             @Override
-            public Result<MavenProject> apply(GA id) {
-                return buildProject(id, projects);
+            public Result<MavenProject> apply( GA id )
+            {
+                return buildProject( id, projects );
             }
         };
     }
 
-    Result<MavenProject> buildProject(final boolean source, final Model model, final Projects projects) {
+    Result<MavenProject> buildProject( final boolean source, final Model model, final Projects projects )
+    {
         final MavenProject project = new MavenProject();
-        project.setOriginalModel(model);
-        project.setFile(model.getPomFile());
-        project.setSource(source);
+        project.setOriginalModel( model );
+        project.setFile( model.getPomFile() );
+        project.setSource( source );
 
         // 1. resolve parents (needed during first phase of build)
         final Parent parent = model.getParent();
-        if (parent != null) {
-            final GA pid = getId(parent);
-            if (projects.isProject(pid)) {
-                final Result<MavenProject> result = buildProject(pid, projects);
-                if (result.hasErrors()) return error(project);
-                project.setParent(result.get());
-                project.setParentFile(result.get().getFile());
+        if ( parent != null )
+        {
+            final GA pid = getId( parent );
+            if ( projects.isProject( pid ) )
+            {
+                final Result<MavenProject> result = buildProject( pid, projects );
+                if ( result.hasErrors() )
+                    return error( project );
+                project.setParent( result.get() );
+                project.setParentFile( result.get().getFile() );
             }
         }
 
         // 2. perform first phase of build to assemble and interpolate model
-        final ModelBuildingRequest request = projects.newModelBuildingRequest(project);
+        final ModelBuildingRequest request = projects.newModelBuildingRequest( project );
         final ModelBuildingResult result;
-        try {
-            result = modelBuilder.build(request);
-        } catch (ModelBuildingException e) {
-            return error(project, e.getProblems());
+        try
+        {
+            result = modelBuilder.build( request );
+        }
+        catch ( ModelBuildingException e )
+        {
+            return error( project, e.getProblems() );
         }
 
         // 3. resolve imports (needed during second phase of build)
-        final Result<Iterable<MavenProject>> imports = buildDependencies(getImports(result.getEffectiveModel()),
-                getDependencyId, projects);
-        if (imports.hasErrors()) return error(project, concat(result.getProblems(), imports.getProblems()));
-        project.setProjectImports(imports.get());
+        final Result<Iterable<MavenProject>> imports = buildDependencies( getImports( result.getEffectiveModel() ),
+                                                                          getDependencyId, projects );
+        if ( imports.hasErrors() )
+            return error( project, concat( result.getProblems(), imports.getProblems() ) );
+        project.setProjectImports( imports.get() );
 
         // 4. perform second phase of build to compute effective model
-        try {
-            modelBuilder.build(request, result);
-        } catch (ModelBuildingException e) {
-            return error(project, e.getProblems());
+        try
+        {
+            modelBuilder.build( request, result );
+        }
+        catch ( ModelBuildingException e )
+        {
+            return error( project, e.getProblems() );
         }
         final Model effectiveModel = result.getEffectiveModel();
-        project.setModel(effectiveModel);
+        project.setModel( effectiveModel );
 
         // 5. resolve plugins
-        final Result<Iterable<MavenProject>> plugins = buildDependencies(effectiveModel.getBuild().getPlugins(),
-                getPluginId, projects);
-        if (plugins.hasErrors()) return error(project, plugins.getProblems());
-        project.setProjectPlugins(plugins.get());
+        final Result<Iterable<MavenProject>> plugins = buildDependencies( effectiveModel.getBuild().getPlugins(),
+                                                                          getPluginId, projects );
+        if ( plugins.hasErrors() )
+            return error( project, plugins.getProblems() );
+        project.setProjectPlugins( plugins.get() );
 
         // 6. resolve dependencies
-        final Result<Iterable<MavenProject>> dependencies = buildDependencies(effectiveModel.getDependencies(),
-                getDependencyId, projects);
-        if (dependencies.hasErrors()) return error(project, dependencies.getProblems());
-        project.setProjectDependencies(dependencies.get());
+        final Result<Iterable<MavenProject>> dependencies = buildDependencies( effectiveModel.getDependencies(),
+                                                                               getDependencyId, projects );
+        if ( dependencies.hasErrors() )
+            return error( project, dependencies.getProblems() );
+        project.setProjectDependencies( dependencies.get() );
 
-        initProject(project, result, projects.request);
+        initProject( project, result, projects.request );
 
-        return success(project);// TODO preserve errors
+        return success( project );// TODO preserve errors
     }
 
-    <T> Result<Iterable<MavenProject>> buildDependencies(Iterable<T> deps, Function<T, GA> getId, Projects projects) {
-        return newResultSet(newArrayList(transform(filter(transform(deps, getId), projects), buildProject(projects))));
+    <T> Result<Iterable<MavenProject>> buildDependencies( Iterable<T> deps, Function<T, GA> getId, Projects projects )
+    {
+        return newResultSet( newArrayList( transform( filter( transform( deps, getId ), projects ),
+                                                      buildProject( projects ) ) ) );
     }
 
-    static Iterable<Dependency> getImports(Model model) {
-        return filter(model.getDependencyManagement().getDependencies(),
-                and(compose(equalTo("pom"), new Function<Dependency, String>() {
-                    @Override
-                    public String apply(Dependency input) {
-                        return input.getType();
-                    }
-                }), compose(equalTo("import"), new Function<Dependency, String>() {
-                    @Override
-                    public String apply(Dependency input) {
-                        return input.getScope();
-                    }
-                })));
+    static Iterable<Dependency> getImports( Model model )
+    {
+        return filter( model.getDependencyManagement().getDependencies(),
+                       and( compose( equalTo( "pom" ), new Function<Dependency, String>()
+                       {
+                           @Override
+                           public String apply( Dependency input )
+                           {
+                               return input.getType();
+                           }
+                       } ), compose( equalTo( "import" ), new Function<Dependency, String>()
+                       {
+                           @Override
+                           public String apply( Dependency input )
+                           {
+                               return input.getScope();
+                           }
+                       } ) ) );
     }
 
     // TODO mostly copied from {@link DefaulProjectBuilder}
     @SuppressWarnings("deprecation")
-    private void initProject(MavenProject project, ModelBuildingResult result,
-            ProjectBuildingRequest projectBuildingRequest) {
+    private void initProject( MavenProject project, ModelBuildingResult result,
+                              ProjectBuildingRequest projectBuildingRequest )
+    {
         // TODO set collected projects and execution root?
         // TODO inject maven project for external parent?
 
-        project.setArtifact(repositorySystem.createArtifact(project.getGroupId(), project.getArtifactId(),
-                project.getVersion(), null, project.getPackaging()));
+        project.setArtifact( repositorySystem.createArtifact( project.getGroupId(), project.getArtifactId(),
+                                                              project.getVersion(), null, project.getPackaging() ) );
 
         final Build build = project.getBuild();
-        project.addScriptSourceRoot(build.getScriptSourceDirectory());
-        project.addCompileSourceRoot(build.getSourceDirectory());
-        project.addTestCompileSourceRoot(build.getTestSourceDirectory());
+        project.addScriptSourceRoot( build.getScriptSourceDirectory() );
+        project.addCompileSourceRoot( build.getSourceDirectory() );
+        project.addTestCompileSourceRoot( build.getTestSourceDirectory() );
 
         List<Profile> activeProfiles = new ArrayList<Profile>();
-        activeProfiles.addAll(result.getActivePomProfiles(result.getModelIds().get(0)));
-        activeProfiles.addAll(result.getActiveExternalProfiles());
-        project.setActiveProfiles(activeProfiles);
+        activeProfiles.addAll( result.getActivePomProfiles( result.getModelIds().get( 0 ) ) );
+        activeProfiles.addAll( result.getActiveExternalProfiles() );
+        project.setActiveProfiles( activeProfiles );
 
-        project.setInjectedProfileIds("external", getProfileIds(result.getActiveExternalProfiles()));
-        for (String modelId : result.getModelIds()) {
-            project.setInjectedProfileIds(modelId, getProfileIds(result.getActivePomProfiles(modelId)));
+        project.setInjectedProfileIds( "external", getProfileIds( result.getActiveExternalProfiles() ) );
+        for ( String modelId : result.getModelIds() )
+        {
+            project.setInjectedProfileIds( modelId, getProfileIds( result.getActivePomProfiles( modelId ) ) );
         }
 
         //
         // All the parts that were taken out of MavenProject for Maven 4.0.0
         //
 
-        project.setProjectBuildingRequest(projectBuildingRequest);
+        project.setProjectBuildingRequest( projectBuildingRequest );
 
         // pluginArtifacts
         Set<Artifact> pluginArtifacts = new HashSet<Artifact>();
-        for (Plugin plugin : project.getBuildPlugins()) {
-            Artifact artifact = repositorySystem.createPluginArtifact(plugin);
-            if (artifact != null) {
-                pluginArtifacts.add(artifact);
+        for ( Plugin plugin : project.getBuildPlugins() )
+        {
+            Artifact artifact = repositorySystem.createPluginArtifact( plugin );
+            if ( artifact != null )
+            {
+                pluginArtifacts.add( artifact );
             }
         }
-        project.setPluginArtifacts(pluginArtifacts);
+        project.setPluginArtifacts( pluginArtifacts );
 
         // reportArtifacts
         Set<Artifact> reportArtifacts = new HashSet<Artifact>();
-        for (ReportPlugin report : project.getReportPlugins()) {
+        for ( ReportPlugin report : project.getReportPlugins() )
+        {
             Plugin pp = new Plugin();
-            pp.setGroupId(report.getGroupId());
-            pp.setArtifactId(report.getArtifactId());
-            pp.setVersion(report.getVersion());
+            pp.setGroupId( report.getGroupId() );
+            pp.setArtifactId( report.getArtifactId() );
+            pp.setVersion( report.getVersion() );
 
-            Artifact artifact = repositorySystem.createPluginArtifact(pp);
+            Artifact artifact = repositorySystem.createPluginArtifact( pp );
 
-            if (artifact != null) {
-                reportArtifacts.add(artifact);
+            if ( artifact != null )
+            {
+                reportArtifacts.add( artifact );
             }
         }
-        project.setReportArtifacts(reportArtifacts);
+        project.setReportArtifacts( reportArtifacts );
 
         // extensionArtifacts
         Set<Artifact> extensionArtifacts = new HashSet<Artifact>();
         List<Extension> extensions = project.getBuildExtensions();
-        if (extensions != null) {
-            for (Extension ext : extensions) {
+        if ( extensions != null )
+        {
+            for ( Extension ext : extensions )
+            {
                 String version;
-                if (StringUtils.isEmpty(ext.getVersion())) {
+                if ( StringUtils.isEmpty( ext.getVersion() ) )
+                {
                     version = "RELEASE";
-                } else {
+                }
+                else
+                {
                     version = ext.getVersion();
                 }
 
-                Artifact artifact = repositorySystem.createArtifact(ext.getGroupId(), ext.getArtifactId(), version,
-                        null, "jar");
+                Artifact artifact = repositorySystem.createArtifact( ext.getGroupId(), ext.getArtifactId(), version,
+                                                                     null, "jar" );
 
-                if (artifact != null) {
-                    extensionArtifacts.add(artifact);
+                if ( artifact != null )
+                {
+                    extensionArtifacts.add( artifact );
                 }
             }
         }
-        project.setExtensionArtifacts(extensionArtifacts);
+        project.setExtensionArtifacts( extensionArtifacts );
 
         // managedVersionMap
         Map<String, Artifact> map = null;
-        if (repositorySystem != null) {
+        if ( repositorySystem != null )
+        {
             List<Dependency> deps;
             DependencyManagement dependencyManagement = project.getDependencyManagement();
-            if ((dependencyManagement != null) && ((deps = dependencyManagement.getDependencies()) != null)
-                    && (deps.size() > 0)) {
+            if ( ( dependencyManagement != null ) && ( ( deps = dependencyManagement.getDependencies() ) != null )
+                && ( deps.size() > 0 ) )
+            {
                 map = new HashMap<String, Artifact>();
-                for (Dependency d : dependencyManagement.getDependencies()) {
-                    Artifact artifact = repositorySystem.createDependencyArtifact(d);
+                for ( Dependency d : dependencyManagement.getDependencies() )
+                {
+                    Artifact artifact = repositorySystem.createDependencyArtifact( d );
 
-                    if (artifact == null) {
+                    if ( artifact == null )
+                    {
                         map = Collections.emptyMap();
                     }
 
-                    map.put(d.getManagementKey(), artifact);
+                    map.put( d.getManagementKey(), artifact );
                 }
-            } else {
+            }
+            else
+            {
                 map = Collections.emptyMap();
             }
         }
-        project.setManagedVersionMap(map);
+        project.setManagedVersionMap( map );
 
         // release artifact repository
-        if (project.getDistributionManagement() != null && project.getDistributionManagement().getRepository() != null) {
-            try {
+        if ( project.getDistributionManagement() != null && project.getDistributionManagement().getRepository() != null )
+        {
+            try
+            {
                 DeploymentRepository r = project.getDistributionManagement().getRepository();
-                if (!StringUtils.isEmpty(r.getId()) && !StringUtils.isEmpty(r.getUrl())) {
-                    ArtifactRepository repo = MavenRepositorySystem.buildArtifactRepository(project
-                            .getDistributionManagement().getRepository());
-                    repositorySystem.injectProxy(projectBuildingRequest.getRepositorySession(), Arrays.asList(repo));
-                    repositorySystem.injectAuthentication(projectBuildingRequest.getRepositorySession(),
-                            Arrays.asList(repo));
-                    project.setReleaseArtifactRepository(repo);
+                if ( !StringUtils.isEmpty( r.getId() ) && !StringUtils.isEmpty( r.getUrl() ) )
+                {
+                    ArtifactRepository repo = MavenRepositorySystem.buildArtifactRepository( project
+                        .getDistributionManagement().getRepository() );
+                    repositorySystem.injectProxy( projectBuildingRequest.getRepositorySession(), Arrays.asList( repo ) );
+                    repositorySystem.injectAuthentication( projectBuildingRequest.getRepositorySession(),
+                                                           Arrays.asList( repo ) );
+                    project.setReleaseArtifactRepository( repo );
                 }
-            } catch (InvalidRepositoryException e) {
-                throw new IllegalStateException("Failed to create release distribution repository for "
-                        + project.getId(), e);
+            }
+            catch ( InvalidRepositoryException e )
+            {
+                throw new IllegalStateException( "Failed to create release distribution repository for "
+                    + project.getId(), e );
             }
         }
 
         // snapshot artifact repository
-        if (project.getDistributionManagement() != null
-                && project.getDistributionManagement().getSnapshotRepository() != null) {
-            try {
+        if ( project.getDistributionManagement() != null
+            && project.getDistributionManagement().getSnapshotRepository() != null )
+        {
+            try
+            {
                 DeploymentRepository r = project.getDistributionManagement().getSnapshotRepository();
-                if (!StringUtils.isEmpty(r.getId()) && !StringUtils.isEmpty(r.getUrl())) {
-                    ArtifactRepository repo = MavenRepositorySystem.buildArtifactRepository(project
-                            .getDistributionManagement().getSnapshotRepository());
-                    repositorySystem.injectProxy(projectBuildingRequest.getRepositorySession(), Arrays.asList(repo));
-                    repositorySystem.injectAuthentication(projectBuildingRequest.getRepositorySession(),
-                            Arrays.asList(repo));
-                    project.setSnapshotArtifactRepository(repo);
+                if ( !StringUtils.isEmpty( r.getId() ) && !StringUtils.isEmpty( r.getUrl() ) )
+                {
+                    ArtifactRepository repo = MavenRepositorySystem.buildArtifactRepository( project
+                        .getDistributionManagement().getSnapshotRepository() );
+                    repositorySystem.injectProxy( projectBuildingRequest.getRepositorySession(), Arrays.asList( repo ) );
+                    repositorySystem.injectAuthentication( projectBuildingRequest.getRepositorySession(),
+                                                           Arrays.asList( repo ) );
+                    project.setSnapshotArtifactRepository( repo );
                 }
-            } catch (InvalidRepositoryException e) {
-                throw new IllegalStateException("Failed to create snapshot distribution repository for "
-                        + project.getId(), e);
+            }
+            catch ( InvalidRepositoryException e )
+            {
+                throw new IllegalStateException( "Failed to create snapshot distribution repository for "
+                    + project.getId(), e );
             }
         }
     }
 
-    private List<String> getProfileIds(List<Profile> profiles) {
-        return transform(profiles, new Function<Profile, String>() {
+    private List<String> getProfileIds( List<Profile> profiles )
+    {
+        return transform( profiles, new Function<Profile, String>()
+        {
             @Override
-            public String apply(Profile input) {
+            public String apply( Profile input )
+            {
                 return input.getId();
             }
-        });
+        } );
     }
 
 }

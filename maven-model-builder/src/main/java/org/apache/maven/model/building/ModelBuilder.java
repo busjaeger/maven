@@ -57,7 +57,7 @@ public interface ModelBuilder
 
     /**
      * Performs only the part of {@link ModelBuilder#build(ModelBuildingRequest)} that loads the raw model
-     * 
+     *
      * @param request
      * @return
      * @throws ModelBuildingException

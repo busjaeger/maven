@@ -238,50 +238,62 @@ public class MavenProject
         return model;
     }
 
-    boolean isSource() {
+    boolean isSource()
+    {
         return source;
     }
 
-    void setSource(boolean source) {
+    void setSource( boolean source )
+    {
         this.source = source;
     }
 
-    Iterable<? extends MavenProject> getProjectDependencies() {
+    Iterable<? extends MavenProject> getProjectDependencies()
+    {
         return projectDependencies;
     }
 
-    void setProjectDependencies(Iterable<? extends MavenProject> projectDependencies) {
+    void setProjectDependencies( Iterable<? extends MavenProject> projectDependencies )
+    {
         this.projectDependencies = projectDependencies;
     }
 
-    void setProjectPlugins(Iterable<? extends MavenProject> projectPlugins) {
+    void setProjectPlugins( Iterable<? extends MavenProject> projectPlugins )
+    {
         this.projectPlugins = projectPlugins;
     }
 
-    Iterable<? extends MavenProject> getProjectPlugins() {
+    Iterable<? extends MavenProject> getProjectPlugins()
+    {
         return projectPlugins;
     }
 
-    void setProjectImports(Iterable<? extends MavenProject> projectImports) {
+    void setProjectImports( Iterable<? extends MavenProject> projectImports )
+    {
         this.projectImports = projectImports;
     }
 
-    Iterable<? extends MavenProject> getProjectImports() {
+    Iterable<? extends MavenProject> getProjectImports()
+    {
         return projectImports;
     }
 
-    Iterable<MavenProject> getAllProjectDependencies() {
-        return concat(parent == null ? Collections.<MavenProject> emptyList() : Collections.singleton(parent),
-                projectDependencies, projectPlugins, projectImports);
+    Iterable<MavenProject> getAllProjectDependencies()
+    {
+        return concat( parent == null ? Collections.<MavenProject> emptyList() : Collections.singleton( parent ),
+                       projectDependencies, projectPlugins, projectImports );
     }
 
-    boolean hasSourceDependency() {
-        return any(getAllProjectDependencies(), new Predicate<MavenProject>() {
+    boolean hasSourceDependency()
+    {
+        return any( getAllProjectDependencies(), new Predicate<MavenProject>()
+        {
             @Override
-            public boolean apply(MavenProject input) {
+            public boolean apply( MavenProject input )
+            {
                 return input.source;
             }
-        });
+        } );
     }
 
     /**

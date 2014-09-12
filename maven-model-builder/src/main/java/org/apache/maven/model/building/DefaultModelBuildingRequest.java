@@ -350,23 +350,27 @@ public class DefaultModelBuildingRequest
     }
 
     @Override
-    public Model getRawModel() {
+    public Model getRawModel()
+    {
         return rawModel;
     }
 
     @Override
-    public ModelBuildingRequest setRawModel(Model rawModel) {
+    public ModelBuildingRequest setRawModel( Model rawModel )
+    {
         this.rawModel = rawModel;
         return this;
     }
 
     @Override
-    public WorkspaceResolver getWorkspaceResolver() {
+    public WorkspaceResolver getWorkspaceResolver()
+    {
         return workspaceResolver;
     }
 
     @Override
-    public ModelBuildingRequest setWorkspaceResolver(WorkspaceResolver workspaceResolver) {
+    public ModelBuildingRequest setWorkspaceResolver( WorkspaceResolver workspaceResolver )
+    {
         this.workspaceResolver = workspaceResolver;
         return this;
     }

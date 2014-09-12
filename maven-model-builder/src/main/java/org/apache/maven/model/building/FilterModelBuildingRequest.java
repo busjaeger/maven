@@ -46,17 +46,6 @@ class FilterModelBuildingRequest
         this.request = request;
     }
 
-    @Override
-    public Model getRawModel() {
-        return request.getRawModel();
-    }
-
-    @Override
-    public ModelBuildingRequest setRawModel(Model rawModel) {
-        request.setRawModel(rawModel);
-        return this;
-    }
-
     public File getPomFile()
     {
         return request.getPomFile();
@@ -238,13 +227,29 @@ class FilterModelBuildingRequest
     }
 
     @Override
-    public WorkspaceResolver getWorkspaceResolver() {
+    public Model getRawModel()
+    {
+        return request.getRawModel();
+    }
+
+    @Override
+    public ModelBuildingRequest setRawModel( Model rawModel )
+    {
+        request.setRawModel( rawModel );
+        return this;
+    }
+
+    @Override
+    public WorkspaceResolver getWorkspaceResolver()
+    {
         return request.getWorkspaceResolver();
     }
 
     @Override
-    public ModelBuildingRequest setWorkspaceResolver(WorkspaceResolver workspaceResolver) {
-        request.setWorkspaceResolver(workspaceResolver);
+    public ModelBuildingRequest setWorkspaceResolver( WorkspaceResolver workspaceResolver )
+    {
+        request.setWorkspaceResolver( workspaceResolver );
         return this;
     }
+
 }
