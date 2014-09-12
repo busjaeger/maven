@@ -1029,7 +1029,8 @@ public class DefaultModelBuilder
 
         importIds.add( importing );
 
-        ModelResolver modelResolver = request.getModelResolver();
+        final WorkspaceResolver workspaceResolver = request.getWorkspaceResolver();
+        final ModelResolver modelResolver = request.getModelResolver();
 
         ModelBuildingRequest importRequest = null;
 
@@ -1094,63 +1095,74 @@ public class DefaultModelBuilder
                 getCache( request.getModelCache(), groupId, artifactId, version, ModelCacheTag.IMPORT );
 
             if ( importMngt == null )
-            {
-                if ( modelResolver == null )
+            { 
+                if ( workspaceResolver == null && modelResolver == null )
                 {
                     throw new IllegalArgumentException( "no model resolver provided, cannot resolve import POM "
                         + ModelProblemUtils.toId( groupId, artifactId, version ) + " for POM "
                         + ModelProblemUtils.toSourceHint( model ) );
                 }
 
-                ModelSource importSource;
-                try
-                {
-                    importSource = modelResolver.resolveModel( groupId, artifactId, version );
-                }
-                catch ( UnresolvableModelException e )
-                {
-                    StringBuilder buffer = new StringBuilder( 256 );
-                    buffer.append( "Non-resolvable import POM" );
-                    if ( !containsCoordinates( e.getMessage(), groupId, artifactId, version ) )
-                    {
-                        buffer.append( " " ).append( ModelProblemUtils.toId( groupId, artifactId, version ) );
+                final Model importModel;
+                if (workspaceResolver != null) {
+                    try {
+                        importModel = workspaceResolver.resolveEffectiveModel(groupId, artifactId, version);
+                    } catch (UnresolvableModelException e) {
+                        problems.add(new ModelProblemCollectorRequest(Severity.FATAL, Version.BASE)
+                        .setMessage(e.getMessage().toString()).setException(e));
+                        continue;
                     }
-                    buffer.append( ": " ).append( e.getMessage() );
+                } else {
+                    final ModelSource importSource;
+                    try
+                    {
+                        importSource = modelResolver.resolveModel( groupId, artifactId, version );
+                    }
+                    catch ( UnresolvableModelException e )
+                    {
+                        StringBuilder buffer = new StringBuilder( 256 );
+                        buffer.append( "Non-resolvable import POM" );
+                        if ( !containsCoordinates( e.getMessage(), groupId, artifactId, version ) )
+                        {
+                            buffer.append( " " ).append( ModelProblemUtils.toId( groupId, artifactId, version ) );
+                        }
+                        buffer.append( ": " ).append( e.getMessage() );
 
-                    problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )
-                            .setMessage( buffer.toString() )
-                            .setLocation( dependency.getLocation( "" ) )
-                            .setException( e ) );
-                    continue;
+                        problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )
+                        .setMessage( buffer.toString() )
+                        .setLocation( dependency.getLocation( "" ) )
+                        .setException( e ) );
+                        continue;
+                    }
+
+                    if ( importRequest == null )
+                    {
+                        importRequest = new DefaultModelBuildingRequest();
+                        importRequest.setValidationLevel( ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL );
+                        importRequest.setModelCache( request.getModelCache() );
+                        importRequest.setSystemProperties( request.getSystemProperties() );
+                        importRequest.setUserProperties( request.getUserProperties() );
+                        importRequest.setLocationTracking( request.isLocationTracking() );
+                    }
+
+                    importRequest.setModelSource( importSource );
+                    importRequest.setModelResolver( modelResolver.newCopy() );
+
+                    final ModelBuildingResult importResult;
+                    try
+                    {
+                        importResult = build( importRequest );
+                    }
+                    catch ( ModelBuildingException e )
+                    {
+                        problems.addAll( e.getProblems() );
+                        continue;
+                    }
+
+                    problems.addAll( importResult.getProblems() );
+
+                    importModel = importResult.getEffectiveModel();
                 }
-
-                if ( importRequest == null )
-                {
-                    importRequest = new DefaultModelBuildingRequest();
-                    importRequest.setValidationLevel( ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL );
-                    importRequest.setModelCache( request.getModelCache() );
-                    importRequest.setSystemProperties( request.getSystemProperties() );
-                    importRequest.setUserProperties( request.getUserProperties() );
-                    importRequest.setLocationTracking( request.isLocationTracking() );
-                }
-
-                importRequest.setModelSource( importSource );
-                importRequest.setModelResolver( modelResolver.newCopy() );
-
-                ModelBuildingResult importResult;
-                try
-                {
-                    importResult = build( importRequest );
-                }
-                catch ( ModelBuildingException e )
-                {
-                    problems.addAll( e.getProblems() );
-                    continue;
-                }
-
-                problems.addAll( importResult.getProblems() );
-
-                Model importModel = importResult.getEffectiveModel();
 
                 importMngt = importModel.getDependencyManagement();
 

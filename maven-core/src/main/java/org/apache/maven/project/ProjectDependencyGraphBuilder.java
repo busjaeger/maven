@@ -14,7 +14,6 @@ import static org.apache.maven.model.building.ModelProblem.Severity.FATAL;
 import static org.apache.maven.model.building.ModelProblem.Version.BASE;
 import static org.apache.maven.model.building.Result.addProblem;
 import static org.apache.maven.model.building.Result.error;
-import static org.apache.maven.model.building.Result.newResult;
 import static org.apache.maven.model.building.Result.newResultSet;
 import static org.apache.maven.model.building.Result.success;
 import static org.apache.maven.project.DefaultProjectDependencyGraph.newPDG;

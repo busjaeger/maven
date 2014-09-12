@@ -53,70 +53,77 @@ public class ModelLoader {
      * @throws IOException
      */
     public Result<Iterable<Model>> loadModules(File pom) {
-        final Collection<Result<? extends Model>> results = newArrayList();
-        final Set<File> visited = newHashSet(pom);
-        load(pom, results, visited);
-        return newResultSet(results);
+        final Loader loader = new Loader();
+        loader.loadModules(pom);
+        return newResultSet(loader.results);
     }
 
     /**
-     * Loads models recursively
-     *
-     * @param pom
-     * @param models
-     * @param visited
-     * @throws ModelParseException
-     * @throws IOException
+     * Encapsulates the mutable state during the loading process
      */
-    void load(File pom, Collection<Result<? extends Model>> results, Set<File> visited) {
-        // TODO pass in validation level and location tracking
-        // TODO activate profiles to allow for module injection
-        final Result<? extends Model> result = modelBuilder.buildRawModel(pom, VALIDATION_LEVEL_STRICT, true);
+    class Loader {
+        private final Set<File> visited;
+        private final Collection<Result<? extends Model>> results;
 
-        final Model model = result.get();
-        // model completely failed to load, use result
-        if (model == null) {
-            results.add(result);
+        public Loader() {
+            this.visited = newHashSet();
+            this.results = newArrayList();
         }
-        // otherwise, try to traverse modules (even if result has errors)
-        else {
-            final Collection<ModelProblem> problems = newArrayList();
-            for (String module : model.getModules()) {
-                final File modulePom = getModulePomFile(pom, module);
 
-                if (modulePom == null) {
-                    problems.add(new DefaultModelProblem(
-                            "Child module " + modulePom + " of " + pom + " does not exist", ERROR, BASE, model, -1, -1,
-                            null));
-                    continue;
-                }
+        /**
+         * Loads the raw model for the given file and all its modules recursively
+         * 
+         * @param pom
+         */
+        boolean loadModules(File pom) {
+            if (!visited.add(pom)) return false;
 
-                if (!visited.add(modulePom)) {
-                    problems.add(new DefaultModelProblem("Child module " + modulePom + " of " + pom
-                            + " forms aggregation cycle " + on(" -> ").join(visited), ERROR, BASE, model, -1, -1, null));
-                    visited.remove(modulePom);
-                    continue;
-                }
+            final Result<? extends Model> result = modelBuilder.buildRawModel(pom, VALIDATION_LEVEL_STRICT, true);
 
-                load(modulePom, results, visited);
+            final Model model = result.get();
+            // model completely failed to load, use result
+            if (model == null) {
+                results.add(result);
             }
-            results.add(addProblems(result, problems));
-        }
-    }
+            // otherwise, try to traverse modules (even if result has errors)
+            else {
+                final Collection<ModelProblem> problems = newArrayList();
+                for (String module : model.getModules()) {
+                    final File modulePom = getModulePomFile(pom, module);
 
-    /**
-     * Locates the module pom file for the given module relative to the given pom file. If no pom file can be found,
-     * null is returned.
-     * 
-     * @param pom
-     * @param module
-     * @return
-     */
-    File getModulePomFile(File pom, String module) {
-        final File moduleFile = new File(pom.getParentFile(), module.replace('\\', separatorChar).replace('/',
-                separatorChar));
-        return moduleFile.isFile() ? moduleFile
-                : (moduleFile.isDirectory() ? modelLocator.locatePom(moduleFile) : null);
+                    if (modulePom == null) {
+                        problems.add(new DefaultModelProblem("Child module " + modulePom + " of " + pom
+                                + " does not exist", ERROR, BASE, model, -1, -1, null));
+                        continue;
+                    }
+
+                    if (!loadModules(modulePom)) {
+                        problems.add(new DefaultModelProblem("Child module " + modulePom + " of " + pom
+                                + " forms aggregation cycle " + on(" -> ").join(visited), ERROR, BASE, model, -1, -1,
+                                null));
+                        visited.remove(modulePom);
+                        continue;
+                    }
+                }
+                results.add(addProblems(result, problems));
+            }
+            return true;
+        }
+
+        /**
+         * Locates the module pom file for the given module relative to the given pom file. If no pom file can be found,
+         * null is returned.
+         * 
+         * @param pom
+         * @param module
+         * @return
+         */
+        File getModulePomFile(File pom, String module) {
+            final File moduleFile = new File(pom.getParentFile(), module.replace('\\', separatorChar).replace('/',
+                    separatorChar));
+            return moduleFile.isFile() ? moduleFile : (moduleFile.isDirectory() ? modelLocator.locatePom(moduleFile)
+                    : null);
+        }
     }
 
 }
