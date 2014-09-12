@@ -39,6 +39,4 @@ public interface ModelUrlNormalizer
      */
     void normalize( Model model, ModelBuildingRequest request );
 
-    void normalize( Model model);
-
 }

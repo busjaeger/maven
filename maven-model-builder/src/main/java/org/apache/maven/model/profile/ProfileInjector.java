@@ -43,6 +43,4 @@ public interface ProfileInjector
      */
     void injectProfile( Model model, Profile profile, ModelBuildingRequest request, ModelProblemCollector problems );
 
-    void injectProfile( Model model, Profile profile);
-
 }

@@ -51,8 +51,4 @@ public interface ModelValidator
      */
     void validateEffectiveModel( Model model, ModelBuildingRequest request, ModelProblemCollector problems );
 
-    void validateRawModel(Model model, int validationLevel, ModelProblemCollector problems);
-    
-    void validateEffectiveModel(Model model, int validationLevel, ModelProblemCollector problems);
-
 }

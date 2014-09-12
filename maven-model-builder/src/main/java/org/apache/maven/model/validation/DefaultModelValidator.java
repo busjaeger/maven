@@ -76,11 +76,6 @@ public class DefaultModelValidator
 
     public void validateRawModel( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
     {
-        validateRawModel(model, request.getValidationLevel(), problems);
-    }
-
-    public void validateRawModel(Model model, int validationLevel, ModelProblemCollector problems)
-    {
         Parent parent = model.getParent();
         if ( parent != null )
         {
@@ -101,9 +96,9 @@ public class DefaultModelValidator
             }
         }
 
-        if ( validationLevel >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
+        if ( request.getValidationLevel() >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
         {
-            Severity errOn30 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
+            Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
 
             validateEnum( "modelVersion", problems, Severity.ERROR, Version.V20, model.getModelVersion(), null, model,
                           "4.0.0" );
@@ -124,28 +119,28 @@ public class DefaultModelValidator
                 validateStringNotEmpty( "version", problems, Severity.FATAL, Version.V20, model.getVersion(), model );
             }
 
-            validate20RawDependencies( problems, model.getDependencies(), "dependencies.dependency", validationLevel );
+            validate20RawDependencies( problems, model.getDependencies(), "dependencies.dependency", request );
 
             if ( model.getDependencyManagement() != null )
             {
                 validate20RawDependencies( problems, model.getDependencyManagement().getDependencies(),
-                                           "dependencyManagement.dependencies.dependency", validationLevel );
+                                           "dependencyManagement.dependencies.dependency", request );
             }
 
-            validateRawRepositories( problems, model.getRepositories(), "repositories.repository", validationLevel );
+            validateRawRepositories( problems, model.getRepositories(), "repositories.repository", request );
 
             validateRawRepositories( problems, model.getPluginRepositories(), "pluginRepositories.pluginRepository",
-                    validationLevel );
+                                     request );
 
             Build build = model.getBuild();
             if ( build != null )
             {
-                validate20RawPlugins( problems, build.getPlugins(), "build.plugins.plugin", validationLevel );
+                validate20RawPlugins( problems, build.getPlugins(), "build.plugins.plugin", request );
 
                 PluginManagement mngt = build.getPluginManagement();
                 if ( mngt != null )
                 {
-                    validate20RawPlugins( problems, mngt.getPlugins(), "build.pluginManagement.plugins.plugin", validationLevel );
+                    validate20RawPlugins( problems, mngt.getPlugins(), "build.pluginManagement.plugins.plugin", request );
                 }
             }
 
@@ -161,33 +156,33 @@ public class DefaultModelValidator
                                   "must be unique but found duplicate profile with id " + profile.getId(), profile );
                 }
 
-                validate30RawProfileActivation( problems, profile.getActivation(), profile.getId(), prefix + ".activation");
+                validate30RawProfileActivation( problems, profile.getActivation(), profile.getId(), prefix + ".activation", request );
 
                 validate20RawDependencies( problems, profile.getDependencies(), prefix + ".dependencies.dependency",
-                        validationLevel );
+                                         request );
 
                 if ( profile.getDependencyManagement() != null )
                 {
                     validate20RawDependencies( problems, profile.getDependencyManagement().getDependencies(), prefix
-                        + ".dependencyManagement.dependencies.dependency", validationLevel );
+                        + ".dependencyManagement.dependencies.dependency", request );
                 }
 
                 validateRawRepositories( problems, profile.getRepositories(), prefix + ".repositories.repository",
-                        validationLevel );
+                                      request );
 
                 validateRawRepositories( problems, profile.getPluginRepositories(), prefix
-                    + ".pluginRepositories.pluginRepository", validationLevel );
+                    + ".pluginRepositories.pluginRepository", request );
 
                 BuildBase buildBase = profile.getBuild();
                 if ( buildBase != null )
                 {
-                    validate20RawPlugins( problems, buildBase.getPlugins(), prefix + ".plugins.plugin", validationLevel );
+                    validate20RawPlugins( problems, buildBase.getPlugins(), prefix + ".plugins.plugin", request );
 
                     PluginManagement mngt = buildBase.getPluginManagement();
                     if ( mngt != null )
                     {
                         validate20RawPlugins( problems, mngt.getPlugins(), prefix + ".pluginManagement.plugins.plugin",
-                                validationLevel );
+                                            request );
                     }
                 }
             }
@@ -195,7 +190,7 @@ public class DefaultModelValidator
     }
 
     private void validate30RawProfileActivation( ModelProblemCollector problems, Activation activation,
-                                                 String sourceHint, String prefix )
+                                                 String sourceHint, String prefix, ModelBuildingRequest request )
     {
         if ( activation == null )
         {
@@ -256,9 +251,9 @@ public class DefaultModelValidator
     }
 
     private void validate20RawPlugins( ModelProblemCollector problems, List<Plugin> plugins, String prefix,
-                                     int validationLevel )
+                                     ModelBuildingRequest request )
     {
-        Severity errOn31 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );
+        Severity errOn31 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );
 
         Map<String, Plugin> index = new HashMap<String, Plugin>();
 
@@ -292,13 +287,7 @@ public class DefaultModelValidator
         }
     }
 
-
     public void validateEffectiveModel( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
-    {
-        validateEffectiveModel(model, request.getValidationLevel(), problems);
-    }
-
-    public void validateEffectiveModel( Model model, int validationLevel, ModelProblemCollector problems )
     {
         validateStringNotEmpty( "modelVersion", problems, Severity.ERROR, Version.BASE, model.getModelVersion(), model );
 
@@ -331,17 +320,17 @@ public class DefaultModelValidator
 
         validateStringNotEmpty( "version", problems, Severity.ERROR, Version.BASE, model.getVersion(), model );
 
-        Severity errOn30 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
+        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
 
-        validateEffectiveDependencies( problems, model.getDependencies(), false, validationLevel );
+        validateEffectiveDependencies( problems, model.getDependencies(), false, request );
 
         DependencyManagement mgmt = model.getDependencyManagement();
         if ( mgmt != null )
         {
-            validateEffectiveDependencies( problems, mgmt.getDependencies(), true, validationLevel );
+            validateEffectiveDependencies( problems, mgmt.getDependencies(), true, request );
         }
 
-        if ( validationLevel >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
+        if ( request.getValidationLevel() >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
         {
             Set<String> modules = new HashSet<String>();
             for ( int i = 0, n = model.getModules().size(); i < n; i++ )
@@ -354,7 +343,7 @@ public class DefaultModelValidator
                 }
             }
 
-            Severity errOn31 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );
+            Severity errOn31 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );
 
             validateBannedCharacters( "version", problems, errOn31, Version.V20, model.getVersion(), null, model,
                                       ILLEGAL_VERSION_CHARS );
@@ -372,7 +361,7 @@ public class DefaultModelValidator
                                             p );
 
                     validate20PluginVersion( "build.plugins.plugin.version", problems, p.getVersion(), p.getKey(), p,
-                                           validationLevel );
+                                           request );
 
                     validateBoolean( "build.plugins.plugin.inherited", problems, errOn30, Version.V20, p.getInherited(), p.getKey(),
                                      p );
@@ -380,12 +369,12 @@ public class DefaultModelValidator
                     validateBoolean( "build.plugins.plugin.extensions", problems, errOn30, Version.V20, p.getExtensions(),
                                      p.getKey(), p );
 
-                    validate20EffectivePluginDependencies( problems, p, validationLevel );
+                    validate20EffectivePluginDependencies( problems, p, request );
                 }
 
-                validate20RawResources( problems, build.getResources(), "build.resources.resource", validationLevel );
+                validate20RawResources( problems, build.getResources(), "build.resources.resource", request );
 
-                validate20RawResources( problems, build.getTestResources(), "build.testResources.testResource", validationLevel );
+                validate20RawResources( problems, build.getTestResources(), "build.testResources.testResource", request );
             }
 
             Reporting reporting = model.getReporting();
@@ -403,12 +392,12 @@ public class DefaultModelValidator
 
             for ( Repository repository : model.getRepositories() )
             {
-                validate20EffectiveRepository( problems, repository, "repositories.repository", validationLevel );
+                validate20EffectiveRepository( problems, repository, "repositories.repository", request );
             }
 
             for ( Repository repository : model.getPluginRepositories() )
             {
-                validate20EffectiveRepository( problems, repository, "pluginRepositories.pluginRepository", validationLevel );
+                validate20EffectiveRepository( problems, repository, "pluginRepositories.pluginRepository", request );
             }
 
             DistributionManagement distMgmt = model.getDistributionManagement();
@@ -420,18 +409,18 @@ public class DefaultModelValidator
                                   "must not be specified.", distMgmt );
                 }
 
-                validate20EffectiveRepository( problems, distMgmt.getRepository(), "distributionManagement.repository", validationLevel );
+                validate20EffectiveRepository( problems, distMgmt.getRepository(), "distributionManagement.repository", request );
                 validate20EffectiveRepository( problems, distMgmt.getSnapshotRepository(),
-                                    "distributionManagement.snapshotRepository", validationLevel );
+                                    "distributionManagement.snapshotRepository", request );
             }
         }
     }
 
     private void validate20RawDependencies( ModelProblemCollector problems, List<Dependency> dependencies, String prefix,
-                                          int validationLevel )
+                                          ModelBuildingRequest request )
     {
-        Severity errOn30 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
-        Severity errOn31 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );
+        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
+        Severity errOn31 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );
 
         Map<String, Dependency> index = new HashMap<String, Dependency>();
 
@@ -500,17 +489,17 @@ public class DefaultModelValidator
     }
 
     private void validateEffectiveDependencies( ModelProblemCollector problems, List<Dependency> dependencies,
-                                                boolean management, int validationLevel )
+                                                boolean management, ModelBuildingRequest request )
     {
-        Severity errOn30 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
+        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
 
         String prefix = management ? "dependencyManagement.dependencies.dependency." : "dependencies.dependency.";
 
         for ( Dependency d : dependencies )
         {
-            validateEffectiveDependency( problems, d, management, prefix, validationLevel );
+            validateEffectiveDependency( problems, d, management, prefix, request );
 
-            if ( validationLevel >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
+            if ( request.getValidationLevel() >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
             {
                 validateBoolean( prefix + "optional", problems, errOn30, Version.V20, d.getOptional(), d.getManagementKey(), d );
 
@@ -530,7 +519,7 @@ public class DefaultModelValidator
     }
 
     private void validate20EffectivePluginDependencies( ModelProblemCollector problems, Plugin plugin,
-                                                      int validationLevel )
+                                                      ModelBuildingRequest request )
     {
         List<Dependency> dependencies = plugin.getDependencies();
 
@@ -538,11 +527,11 @@ public class DefaultModelValidator
         {
             String prefix = "build.plugins.plugin[" + plugin.getKey() + "].dependencies.dependency.";
 
-            Severity errOn30 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
+            Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
 
             for ( Dependency d : dependencies )
             {
-                validateEffectiveDependency( problems, d, false, prefix, validationLevel );
+                validateEffectiveDependency( problems, d, false, prefix, request );
 
                 validateVersion( prefix + "version", problems, errOn30, Version.BASE, d.getVersion(), d.getManagementKey(), d );
 
@@ -553,7 +542,7 @@ public class DefaultModelValidator
     }
 
     private void validateEffectiveDependency( ModelProblemCollector problems, Dependency d, boolean management,
-                                              String prefix, int validationLevel )
+                                              String prefix, ModelBuildingRequest request )
     {
         validateId( prefix + "artifactId", problems, Severity.ERROR, Version.BASE, d.getArtifactId(), d.getManagementKey(), d );
 
@@ -587,13 +576,13 @@ public class DefaultModelValidator
                 else if ( !sysFile.isFile() )
                 {
                     String msg = "refers to a non-existing file " + sysFile.getAbsolutePath();
-                    // TODO move this error message to the right location (running with JDK is not a model invariant)
-//                    systemPath = systemPath.replace( '/', File.separatorChar ).replace( '\\', File.separatorChar );
-//                    String jdkHome = systemProperties.getProperty( "java.home", "" ) + File.separator + "..";
-//                    if ( systemPath.startsWith( jdkHome ) )
-//                    {
-//                        msg += ". Please verify that you run Maven using a JDK and not just a JRE.";
-//                    }
+                    systemPath = systemPath.replace( '/', File.separatorChar ).replace( '\\', File.separatorChar );
+                    String jdkHome =
+                        request.getSystemProperties().getProperty( "java.home", "" ) + File.separator + "..";
+                    if ( systemPath.startsWith( jdkHome ) )
+                    {
+                        msg += ". Please verify that you run Maven using a JDK and not just a JRE.";
+                    }
                     addViolation( problems, Severity.WARNING, Version.BASE, prefix + "systemPath", d.getManagementKey(), msg, d );
                 }
             }
@@ -604,11 +593,11 @@ public class DefaultModelValidator
                 + " This field may only be specified for a dependency with system scope.", d );
         }
 
-        if ( validationLevel >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
+        if ( request.getValidationLevel() >= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )
         {
             for ( Exclusion exclusion : d.getExclusions() )
             {
-                if ( validationLevel < ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 )
+                if ( request.getValidationLevel() < ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 )
                 {
                     validateId( prefix + "exclusions.exclusion.groupId", problems, Severity.WARNING, Version.V20,
                                 exclusion.getGroupId(), d.getManagementKey(), exclusion );
@@ -629,7 +618,7 @@ public class DefaultModelValidator
     }
 
     private void validateRawRepositories( ModelProblemCollector problems, List<Repository> repositories, String prefix,
-                                       int validationLevel )
+                                       ModelBuildingRequest request )
     {
         Map<String, Repository> index = new HashMap<String, Repository>();
 
@@ -646,7 +635,7 @@ public class DefaultModelValidator
 
             if ( existing != null )
             {
-                Severity errOn30 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
+                Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
 
                 addViolation( problems, errOn30, Version.V20, prefix + ".id", null, "must be unique: " + repository.getId() + " -> "
                     + existing.getUrl() + " vs " + repository.getUrl(), repository );
@@ -659,11 +648,11 @@ public class DefaultModelValidator
     }
 
     private void validate20EffectiveRepository( ModelProblemCollector problems, Repository repository, String prefix,
-                                     int validationLevel )
+                                     ModelBuildingRequest request )
     {
         if ( repository != null )
         {
-            Severity errOn31 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );
+            Severity errOn31 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );
 
             validateBannedCharacters( prefix + ".id", problems, errOn31, Version.V20, repository.getId(), null, repository,
                                       ILLEGAL_REPO_ID_CHARS );
@@ -684,9 +673,9 @@ public class DefaultModelValidator
     }
 
     private void validate20RawResources( ModelProblemCollector problems, List<Resource> resources, String prefix,
-                                    int validationLevel )
+                                    ModelBuildingRequest request )
     {
-        Severity errOn30 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
+        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
 
         for ( Resource resource : resources )
         {
@@ -953,7 +942,7 @@ public class DefaultModelValidator
 
     private boolean validate20PluginVersion( String fieldName, ModelProblemCollector problems, String string,
                                              String sourceHint, InputLocationTracker tracker,
-                                             int validationLevel )
+                                             ModelBuildingRequest request )
     {
         if ( string == null )
         {
@@ -961,7 +950,7 @@ public class DefaultModelValidator
             return true;
         }
 
-        Severity errOn30 = getSeverity( validationLevel, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
+        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );
 
         if ( !validateVersion( fieldName, problems, errOn30, Version.V20, string, sourceHint, tracker ) )
         {
@@ -1040,6 +1029,11 @@ public class DefaultModelValidator
     private static boolean equals( String s1, String s2 )
     {
         return StringUtils.clean( s1 ).equals( StringUtils.clean( s2 ) );
+    }
+
+    private static Severity getSeverity( ModelBuildingRequest request, int errorThreshold )
+    {
+        return getSeverity( request.getValidationLevel(), errorThreshold );
     }
 
     private static Severity getSeverity( int validationLevel, int errorThreshold )

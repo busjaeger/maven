@@ -48,13 +48,7 @@ public class DefaultPluginManagementInjector
 
     private ManagementModelMerger merger = new ManagementModelMerger();
 
-    @Override
-    public void injectManagement(Model model, ModelBuildingRequest request, ModelProblemCollector problems)
-    {
-        injectManagement(model);
-    }
-
-    public void injectManagement( Model model )
+    public void injectManagement( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
     {
         merger.mergeManagedBuildPlugins( model );
     }

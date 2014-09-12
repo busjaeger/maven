@@ -40,5 +40,4 @@ public interface ReportConfigurationExpander
      */
     void expandPluginConfiguration( Model model, ModelBuildingRequest request, ModelProblemCollector problems );
 
-    void expandPluginConfiguration( Model model );
 }

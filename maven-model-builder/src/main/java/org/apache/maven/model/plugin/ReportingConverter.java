@@ -40,5 +40,4 @@ public interface ReportingConverter
      */
     void convertReporting( Model model, ModelBuildingRequest request, ModelProblemCollector problems );
 
-    void convertReporting( Model model );
 }

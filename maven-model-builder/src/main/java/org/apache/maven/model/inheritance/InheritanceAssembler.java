@@ -45,6 +45,4 @@ public interface InheritanceAssembler
     void assembleModelInheritance( Model child, Model parent, ModelBuildingRequest request,
                                    ModelProblemCollector problems );
 
-    void assembleModelInheritance( Model child, Model parent, ModelProblemCollector problems );
-
 }

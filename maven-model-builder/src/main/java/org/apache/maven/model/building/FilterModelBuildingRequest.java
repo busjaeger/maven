@@ -27,6 +27,7 @@ import java.util.Properties;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.Profile;
 import org.apache.maven.model.resolution.ModelResolver;
+import org.apache.maven.model.resolution.WorkspaceResolver;
 
 /**
  * A model building request that delegates all methods invocations to another request, meant for easy transformations by
@@ -43,6 +44,17 @@ class FilterModelBuildingRequest
     public FilterModelBuildingRequest( ModelBuildingRequest request )
     {
         this.request = request;
+    }
+
+    @Override
+    public Model getRawModel() {
+        return request.getRawModel();
+    }
+
+    @Override
+    public ModelBuildingRequest setRawModel(Model rawModel) {
+        request.setRawModel(rawModel);
+        return this;
     }
 
     public File getPomFile()
@@ -67,16 +79,6 @@ class FilterModelBuildingRequest
         request.setModelSource( modelSource );
 
         return this;
-    }
-
-    @Override
-    public Model getRawModel() {
-        return request.getRawModel();
-    }
-
-    @Override
-    public ModelBuildingRequest setRawModel(Model model) {
-        return request.setRawModel(model);
     }
 
     public int getValidationLevel()
@@ -235,4 +237,14 @@ class FilterModelBuildingRequest
         return this;
     }
 
+    @Override
+    public WorkspaceResolver getWorkspaceResolver() {
+        return request.getWorkspaceResolver();
+    }
+
+    @Override
+    public ModelBuildingRequest setWorkspaceResolver(WorkspaceResolver workspaceResolver) {
+        request.setWorkspaceResolver(workspaceResolver);
+        return this;
+    }
 }

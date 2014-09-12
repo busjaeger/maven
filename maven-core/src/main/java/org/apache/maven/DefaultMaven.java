@@ -54,6 +54,7 @@ import org.apache.maven.model.building.ModelProblemUtils;
 import org.apache.maven.model.building.ModelSource;
 import org.apache.maven.model.building.Result;
 import org.apache.maven.model.building.UrlModelSource;
+import org.apache.maven.model.building.ModelProblem.Severity;
 import org.apache.maven.model.io.ModelParseException;
 import org.apache.maven.plugin.LegacySupport;
 import org.apache.maven.project.MavenProject;
@@ -253,7 +254,14 @@ public class DefaultMaven
         eventCatapult.fire( ExecutionEvent.Type.ProjectDiscoveryStarted, session, null );
 
         final Result<? extends ProjectDependencyGraph> graphResult = projectGraphBuilder.build(session);
-        if (graphResult.hasErrors()) System.out.println(graphResult.getProblems());
+        for (ModelProblem problem : graphResult.getProblems())
+            if (problem.getSeverity() == Severity.WARNING)
+                logger.warn(problem.toString());
+            else
+                logger.error(problem.toString());
+        if (graphResult.hasErrors())
+            return addExceptionToResult(result,
+                    new ProjectBuildingException(Collections.<ProjectBuildingResult> emptyList()));
         final ProjectDependencyGraph projectDependencyGraph = graphResult.get();
 
 //        List<MavenProject> projects;

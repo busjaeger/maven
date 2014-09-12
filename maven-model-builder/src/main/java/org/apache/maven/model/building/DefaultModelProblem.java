@@ -48,10 +48,6 @@ public class DefaultModelProblem
 
     private final Version version;
 
-    DefaultModelProblem( String message, Severity severity, Version version, Model source)
-    {
-        this(message, severity, version, source, -1, -1, null);
-    }
 
     /**
      * Creates a new problem with the specified message and exception.

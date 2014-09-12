@@ -41,8 +41,6 @@ public interface ModelNormalizer
      */
     void mergeDuplicates( Model model, ModelBuildingRequest request, ModelProblemCollector problems );
 
-    void mergeDuplicates( Model model, ModelProblemCollector problems );
-
     /**
      * Sets default values in the specified model that for technical reasons cannot be set directly in the Modello
      * definition.
@@ -52,7 +50,5 @@ public interface ModelNormalizer
      * @param problems The container used to collect problems that were encountered, must not be {@code null}.
      */
     void injectDefaultValues( Model model, ModelBuildingRequest request, ModelProblemCollector problems );
-
-    void injectDefaultValues(Model model);
 
 }

@@ -42,6 +42,4 @@ public interface ModelPathTranslator
      */
     void alignToBaseDirectory( Model model, File basedir, ModelBuildingRequest request );
 
-    void alignToBaseDirectory(Model effectiveModel, File projectDirectory);
-
 }
