@@ -50,7 +50,7 @@ public class Result<T> {
      */
     public static <T> Result<T> success(T model, Iterable<? extends ModelProblem> problems) {
         assert !hasErrors(problems);
-        return new Result<T>(true, model, problems);
+        return new Result<T>(false, model, problems);
     }
 
     /**
@@ -61,6 +61,10 @@ public class Result<T> {
      */
     public static <T> Result<T> error(Iterable<? extends ModelProblem> problems) {
         return error(null, problems);
+    }
+
+    public static <T> Result<T> error(T model) {
+        return error(model, Collections.<ModelProblem> emptyList());
     }
 
     /**

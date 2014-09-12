@@ -8,7 +8,6 @@ import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.transform;
-import static java.util.Collections.singleton;
 import static org.apache.maven.RepositoryUtils.toRepos;
 import static org.apache.maven.artifact.repository.LegacyLocalRepositoryManager.overlay;
 import static org.apache.maven.model.building.ModelProblem.Severity.FATAL;
@@ -233,6 +232,7 @@ public class ProjectDependencyGraphBuilder {
                     request.getRepositorySession(), repoSystem), newChild(null, request).newChild(mbr), repoSystem,
                     repositoryManager, toRepos(request.getRemoteRepositories()), request.getRepositoryMerging(), null));
             mbr.setModelBuildingListener(new DefaultModelBuildingListener(project, projectBuildingHelper, request));
+            mbr.setRawModel(project.getOriginalModel());
             return mbr;
         }
 
@@ -345,9 +345,7 @@ public class ProjectDependencyGraphBuilder {
             final GA pid = getId(parent);
             if (projects.isProject(pid)) {
                 final Result<MavenProject> result = buildProject(pid, projects);
-                if (result.hasErrors())
-                    return error(project, singleton(new DefaultModelProblem("Failed to resolve parent", FATAL, BASE,
-                            model, -1, -1, null)));
+                if (result.hasErrors()) return error(project);
                 project.setParent(result.get());
                 project.setParentFile(result.get().getFile());
             }
@@ -366,6 +364,7 @@ public class ProjectDependencyGraphBuilder {
         final Result<Iterable<MavenProject>> imports = buildDependencies(getImports(result.getEffectiveModel()),
                 getDependencyId, projects);
         if (imports.hasErrors()) return error(project, concat(result.getProblems(), imports.getProblems()));
+        project.setProjectImports(imports.get());
 
         // 4. perform second phase of build to compute effective model
         try {
@@ -390,7 +389,7 @@ public class ProjectDependencyGraphBuilder {
 
         initProject(project, result, projects.request);
 
-        return newResult(project, concat(result.getProblems(), plugins.getProblems(), dependencies.getProblems()));
+        return success(project);// TODO preserve errors
     }
 
     <T> Result<Iterable<MavenProject>> buildDependencies(Iterable<T> deps, Function<T, GA> getId, Projects projects) {

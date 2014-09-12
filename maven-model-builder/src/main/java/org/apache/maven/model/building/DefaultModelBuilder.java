@@ -258,7 +258,9 @@ public class DefaultModelBuilder
             profileActivationContext.setUserProperties( profileProps );
         }
 
-        Model inputModel = readModel( request.getModelSource(), request.getPomFile(), request, problems );
+        Model inputModel = request.getRawModel();
+        if (inputModel == null)
+            inputModel = readModel( request.getModelSource(), request.getPomFile(), request, problems );
 
         problems.setRootModel( inputModel );
 
@@ -272,10 +274,11 @@ public class DefaultModelBuilder
         {
             lineage.add( currentData );
 
-            Model tmpModel = currentData.getModel();
-
-            Model rawModel = tmpModel.clone();
+            Model rawModel = currentData.getModel();
             currentData.setRawModel( rawModel );
+
+            Model tmpModel = rawModel.clone();
+            currentData.setModel(tmpModel);
 
             problems.setSource( tmpModel );
 
@@ -833,14 +836,17 @@ public class DefaultModelBuilder
 
             candidateModel = readModel( candidateSource, pomFile, request, problems );
         } else {
+            final Model m;
             try {
-                final Model m = resolver.resolveRawModel(parent.getGroupId(), parent.getArtifactId(), parent.getVersion());
-                candidateModel = m.clone(); // clone since it will be modified
+                m = resolver.resolveRawModel(parent.getGroupId(), parent.getArtifactId(),
+                        parent.getVersion());
             } catch (UnresolvableModelException e) {
                 problems.add(new ModelProblemCollectorRequest(Severity.FATAL, Version.BASE)
                         .setMessage(e.getMessage().toString()).setLocation(parent.getLocation("")).setException(e));
                 throw problems.newModelBuildingException();
             }
+            if (m == null) return null;
+            candidateModel = m.clone(); // clone since it will be modified
             candidateSource = new FileModelSource(candidateModel.getPomFile());
         }
 
