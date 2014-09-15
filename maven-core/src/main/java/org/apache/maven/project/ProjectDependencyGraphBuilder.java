@@ -8,11 +8,10 @@ import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.transform;
+import static com.google.common.collect.Maps.newLinkedHashMap;
+import static com.google.common.collect.Sets.newLinkedHashSet;
 import static org.apache.maven.RepositoryUtils.toRepos;
 import static org.apache.maven.artifact.repository.LegacyLocalRepositoryManager.overlay;
-import static org.apache.maven.model.building.ModelProblem.Severity.FATAL;
-import static org.apache.maven.model.building.ModelProblem.Version.BASE;
-import static org.apache.maven.model.building.Result.addProblem;
 import static org.apache.maven.model.building.Result.error;
 import static org.apache.maven.model.building.Result.newResultSet;
 import static org.apache.maven.model.building.Result.success;
@@ -22,7 +21,6 @@ import static org.apache.maven.project.GA.getId;
 import static org.apache.maven.project.GA.getPluginId;
 import static org.eclipse.aether.RequestTrace.newChild;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,7 +48,6 @@ import org.apache.maven.model.Plugin;
 import org.apache.maven.model.Profile;
 import org.apache.maven.model.ReportPlugin;
 import org.apache.maven.model.building.DefaultModelBuildingRequest;
-import org.apache.maven.model.building.DefaultModelProblem;
 import org.apache.maven.model.building.ModelBuilder;
 import org.apache.maven.model.building.ModelBuildingException;
 import org.apache.maven.model.building.ModelBuildingRequest;
@@ -59,6 +56,7 @@ import org.apache.maven.model.building.Result;
 import org.apache.maven.model.resolution.UnresolvableModelException;
 import org.apache.maven.model.resolution.WorkspaceResolver;
 import org.apache.maven.model.superpom.SuperPomProvider;
+import org.apache.maven.project.MakeBehaviorFactory.MakeBehavior;
 import org.codehaus.plexus.component.annotations.Component;
 import org.codehaus.plexus.component.annotations.Requirement;
 import org.codehaus.plexus.util.StringUtils;
@@ -67,8 +65,6 @@ import org.eclipse.aether.impl.RemoteRepositoryManager;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 /**
  * Behavior changes (compared to default maven)
@@ -94,10 +90,10 @@ import com.google.common.collect.Sets;
 public class ProjectDependencyGraphBuilder
 {
     @Requirement
-    private ModelLoader modelLoader;
+    private ModelIndexLoader modelIndexLoader;
 
     @Requirement
-    private ModelSelector modelSelector;
+    private MakeBehaviorFactory makeBehaviorFactory;
 
     @Requirement
     private ModelBuilder modelBuilder;
@@ -117,78 +113,217 @@ public class ProjectDependencyGraphBuilder
     @Requirement
     private MavenRepositorySystem repositorySystem;
 
+    /**
+     * Builds the project graph for the given session
+     * 
+     * @param session
+     * @return
+     */
     public Result<? extends ProjectDependencyGraph> build( MavenSession session )
     {
         final MavenExecutionRequest request = session.getRequest();
 
-        // 1. load all models
-        final Result<Iterable<Model>> result = modelLoader.loadModules( request.getPom() );
+        // 1. load source and binary indices (binary may be null)
+        final Result<Map<GA, Model>> srcIndex = modelIndexLoader.load( request.getPom() );
+        final Result<Map<GA, Model>> binIndex = Result.success( null ); // TODO
+        if ( srcIndex.hasErrors() || binIndex.hasErrors() )
+            return error( concat( srcIndex.getProblems(), binIndex.getProblems() ) );
 
-        // if we cannot build the model index, do not continue
-        if ( result.hasErrors() )
-            return error( result.getProblems() );
+        // 2. parse make behavior
+        final Result<? extends MakeBehavior> makeBehavior = makeBehaviorFactory.create( request, srcIndex.get(),
+                                                                                        binIndex.get() );
+        if ( makeBehavior.hasErrors() )
+            return error( makeBehavior.getProblems() );
 
-        // 2. index by Id: throws IllegalArgumentException if multiple projects with same ID
-        final Map<GA, ? extends Model> srcIndex;
-        try
-        {
-            srcIndex = Maps.uniqueIndex( result.get(), getId );
-        }
-        catch ( IllegalArgumentException e )
-        {
-            return error( Collections.singleton( new DefaultModelProblem( "Duplicate project identifiers: "
-                + e.getMessage(), FATAL, BASE, "", -1, -1, null, e ) ) );
-        }
-
-        // 3. determine selected projects based on '--projects'
-        final Set<GA> selected = modelSelector.select( new File( request.getBaseDirectory() ),
-                                                       request.getSelectedProjects(), srcIndex ).keySet();
-
-        // TODO load from generation
-        final Map<GA, ? extends Model> binIndex = Collections.emptyMap();
-
-        final Projects projects = new Projects( selected, srcIndex, binIndex, request.getProjectBuildingRequest()
+        // 3. build graph
+        final Builder builder = new Builder( makeBehavior.get(), request.getProjectBuildingRequest()
             .setRepositorySession( session.getRepositorySession() ) );
-        for ( GA ga : srcIndex.keySet() )
-            buildProject( ga, projects );
 
-        final Result<Iterable<MavenProject>> results = newResultSet( projects.completed.values() );
-        if ( results.hasErrors() )
-            return error( results.getProblems() );
-
-        return success( newPDG( results.get() ), result.getProblems() );
+        return builder.build();
     }
 
-    class Projects
+    /**
+     * Actual (stateful) graph builder implementation
+     * @author bbusjaeger
+     *
+     */
+    class Builder
         implements WorkspaceResolver, Predicate<GA>
     {
-
         // immutable
-        final Set<GA> selectedForSrc;
+        private final MakeBehavior makeBehavior;
 
-        final Map<GA, ? extends Model> srcIndex;
-
-        final Map<GA, ? extends Model> binIndex;
-
-        final ProjectBuildingRequest request;
+        private final ProjectBuildingRequest request;
 
         // mutable
-        final Map<GA, Result<MavenProject>> completed;
+        private final Map<GA, Result<MavenProject>> completed;
 
-        final Set<GA> building;
+        private final Set<GA> building;
 
-        public Projects( Set<GA> selected, Map<GA, ? extends Model> srcModels, Map<GA, ? extends Model> binModels,
-                         ProjectBuildingRequest request )
+        Builder( MakeBehavior makeBehavior, ProjectBuildingRequest request )
         {
-            this.selectedForSrc = selected;
-            this.srcIndex = srcModels;
-            this.binIndex = binModels;
+            this.makeBehavior = makeBehavior;
             this.request = request;
-
-            // / using linked map should topologically-sort projects as they are added
-            this.completed = Maps.newLinkedHashMap();
+            // using linked map should topologically-sort projects as they are added
+            this.completed = newLinkedHashMap();
             // using linked set should preserve cycle order
-            this.building = Sets.newLinkedHashSet();
+            this.building = newLinkedHashSet();
+        }
+
+        /**
+         * builds the project graph
+         * 
+         * @return
+         */
+        private Result<? extends ProjectDependencyGraph> build()
+        {
+            for ( GA ga : makeBehavior.getProjectsToBuild() )
+                buildProject( ga );
+
+            final Result<Iterable<MavenProject>> results = newResultSet( completed.values() );
+            if ( results.hasErrors() )
+                return error( results.getProblems() );
+            else
+                return success( newPDG( results.get() ), results.getProblems() );
+        }
+
+        /**
+         * Builds graph node using the specified make behavior
+         * 
+         * @param id
+         * @param model
+         * @param projects
+         * @return
+         */
+        private Result<MavenProject> buildProject( GA id )
+        {
+            // if the project is already built, return it
+            final Result<MavenProject> existing = completed.get( id );
+            if ( existing != null )
+                return existing;
+
+            /*
+             * If we are currently building this project and traverse back to it via some dependency, we must have a cycle.
+             * Failing here maintains the invariant that the project graph is a DAG, because any newly added project refers
+             * only to projects already in the DAG. In other words, no back-edges are added.
+             */
+            if ( !building.add( id ) )
+                throw new IllegalArgumentException( "Project dependency cycle detected " + building );
+
+            final Result<MavenProject> result = makeBehavior.build( this, id );
+
+            // the project is unmarked, since it is now part of the graph
+            building.remove( id );
+
+            // at this point all project dependencies are in the graph, so this project can be added as well
+            completed.put( id, result );
+
+            return result;
+        }
+
+        /**
+         * Builds a source or binary node from the given raw model
+         * @param source
+         * @param model
+         * @return
+         */
+        Result<MavenProject> buildProject( final boolean source, final Model model )
+        {
+            final MavenProject project = new MavenProject();
+            project.setOriginalModel( model );
+            project.setFile( model.getPomFile() );
+            project.setSource( source );
+
+            // 1. resolve parents (needed during first phase of build)
+            final Parent parent = model.getParent();
+            if ( parent != null )
+            {
+                final GA pid = getId( parent );
+                if ( makeBehavior.isProject( pid ) )
+                {
+                    final Result<MavenProject> result = buildProject( pid );
+                    if ( result.hasErrors() )
+                        return error( project );
+                    project.setParent( result.get() );
+                    project.setParentFile( result.get().getFile() );
+                }
+            }
+
+            // 2. perform first phase of build to assemble and interpolate model
+            final ModelBuildingRequest request = newModelBuildingRequest( project );
+            final ModelBuildingResult result;
+            try
+            {
+                result = modelBuilder.build( request );
+            }
+            catch ( ModelBuildingException e )
+            {
+                return error( project, e.getProblems() );
+            }
+
+            // 3. resolve imports (needed during second phase of build)
+            final Result<Iterable<MavenProject>> imports = buildDependencies( getImports( result.getEffectiveModel() ),
+                                                                              getDependencyId );
+            if ( imports.hasErrors() )
+                return error( project, concat( result.getProblems(), imports.getProblems() ) );
+            project.setProjectImports( imports.get() );
+
+            // 4. perform second phase of build to compute effective model
+            try
+            {
+                modelBuilder.build( request, result );
+            }
+            catch ( ModelBuildingException e )
+            {
+                return error( project, e.getProblems() );
+            }
+            final Model effectiveModel = result.getEffectiveModel();
+            project.setModel( effectiveModel );
+
+            // 5. resolve plugins
+            final Result<Iterable<MavenProject>> plugins = buildDependencies( effectiveModel.getBuild().getPlugins(),
+                                                                              getPluginId );
+            if ( plugins.hasErrors() )
+                return error( project, plugins.getProblems() );
+            project.setProjectPlugins( plugins.get() );
+
+            // 6. resolve dependencies
+            final Result<Iterable<MavenProject>> dependencies = buildDependencies( effectiveModel.getDependencies(),
+                                                                                   getDependencyId );
+            if ( dependencies.hasErrors() )
+                return error( project, dependencies.getProblems() );
+            project.setProjectDependencies( dependencies.get() );
+
+            initProject( project, result, this.request );
+
+            return success( project );// TODO preserve errors
+        }
+
+        // returns partially applied function
+        private Function<GA, Result<MavenProject>> buildProject()
+        {
+            return new Function<GA, Result<MavenProject>>()
+            {
+                @Override
+                public Result<MavenProject> apply( GA id )
+                {
+                    return buildProject( id );
+                }
+            };
+        }
+
+        /**
+         * Builds all dependencies that are projects
+         *
+         * @param deps
+         * @param getId
+         * @param projects
+         * @return
+         */
+        private <T> Result<Iterable<MavenProject>> buildDependencies( Iterable<T> deps, Function<T, GA> getId )
+        {
+            // turns dependencies into IDs, filter out any IDs that are not projects, then build projects for each ID
+            return newResultSet( newArrayList( transform( filter( transform( deps, getId ), this ), buildProject() ) ) );
         }
 
         @Override
@@ -211,7 +346,7 @@ public class ProjectDependencyGraphBuilder
             throws UnresolvableModelException
         {
             final GA id = new GA( groupId, artifactId );
-            if ( !isProject( id ) )
+            if ( !makeBehavior.isProject( id ) )
                 return null;
             final Result<MavenProject> project = completed.get( id );
             if ( project == null )
@@ -222,18 +357,13 @@ public class ProjectDependencyGraphBuilder
             return project.get();
         }
 
-        boolean isProject( GA id )
-        {
-            return srcIndex.containsKey( id ) || binIndex.containsKey( id );
-        }
-
         @Override
         public boolean apply( GA id )
         {
-            return isProject( id );
+            return makeBehavior.isProject( id );
         }
 
-        ModelBuildingRequest newModelBuildingRequest( MavenProject project )
+        private ModelBuildingRequest newModelBuildingRequest( MavenProject project )
         {
             final ModelBuildingRequest mbr = new DefaultModelBuildingRequest();
             mbr.setValidationLevel( request.getValidationLevel() );
@@ -258,198 +388,6 @@ public class ProjectDependencyGraphBuilder
             return mbr;
         }
 
-    }
-
-    /**
-     * Builds nodes using depth-first search traversal. The result
-     * 
-     * @param id
-     * @param model
-     * @param projects
-     * @return
-     */
-    Result<MavenProject> buildProject( GA id, Projects projects )
-    {
-        // if the project is already built, return it
-        final Result<MavenProject> existing = projects.completed.get( id );
-        if ( existing != null )
-            return existing;
-
-        /*
-         * If we are currently building this project and traverse back to it via some dependency, we must have a cycle.
-         * Failing here maintains the invariant that the project graph is a DAG, because any newly added project refers
-         * only to projects already in the DAG. In other words, no back-edges are added.
-         */
-        if ( !projects.building.add( id ) )
-            throw new IllegalArgumentException( "Project dependency cycle detected " + projects.building );
-
-        final Result<MavenProject> result;
-
-        final Model srcModel = projects.srcIndex.get( id );
-        /*
-         * If we recurse via a binary project's dependency, the project targeted by the dependency may not be available
-         * in source form. For example, say A -> B in source, A -> B -> C in binary, and A is selected. Then building
-         * the binary project B will trigger building C, which exists only in binary form.
-         */
-        if ( srcModel == null )
-        {
-            // selected IDs are computed from the source projects, so they should never contains binary-only project
-            assert !projects.selectedForSrc.contains( id );
-
-            final Model binModel = projects.binIndex.get( id );
-
-            // this method must only be called for IDs that are either in the source or binary project set
-            assert binModel != null;
-
-            final Result<MavenProject> binProject = buildProject( false, binModel, projects );
-            if ( binProject.get().hasSourceDependency() )
-                // TODO strategy: 1. use binary project anyway, 2. fail with no src avail, 3. fail (currently 2)
-                result = addProblem( binProject, new DefaultModelProblem( "Binary project " + id
-                    + " refers to a source project, but no source project with same id available to use instead",
-                                                                          FATAL, BASE, binProject.get().getModel(), -1,
-                                                                          -1, null ) );
-            else
-                result = binProject;
-        }
-        /*
-         * If a source project exists, we build it first to determine whether it has source dependencies
-         */
-        else
-        {
-            final Result<MavenProject> srcProject = buildProject( true, srcModel, projects );
-            if ( projects.selectedForSrc.contains( id ) )
-            {
-                result = srcProject;
-            }
-            else if ( srcProject.get().hasSourceDependency() )
-            {
-                // log that project in source mode, because it depends on source project
-                result = srcProject;
-            }
-            else
-            {
-                final Model binModel = projects.binIndex.get( id );
-                if ( binModel == null )
-                {
-                    // log that project in source, because no binary project exists
-                    result = srcProject;
-                }
-                else
-                {
-                    final Result<MavenProject> binProject = buildProject( false, binModel, projects );
-                    if ( binProject.get().hasSourceDependency() )
-                    {
-                        // log that project in source, because binary project depends on source project
-                        // TODO strategy: 1. use binary project anyway, 2. use source project, 3. fail (currently 2)
-                        result = srcProject;
-                    }
-                    else
-                    {
-                        // log that project in binary, because it does not depend on source projects
-                        result = binProject;
-                    }
-                }
-            }
-        }
-
-        // at this point all project dependencies are in the graph, so this project can be added as well
-        projects.completed.put( id, result );
-
-        // the project is unmarked, since it is now part of the graph
-        projects.building.remove( id );
-
-        return result;
-    }
-
-    // returns partially applied function
-    Function<GA, Result<MavenProject>> buildProject( final Projects projects )
-    {
-        return new Function<GA, Result<MavenProject>>()
-        {
-            @Override
-            public Result<MavenProject> apply( GA id )
-            {
-                return buildProject( id, projects );
-            }
-        };
-    }
-
-    Result<MavenProject> buildProject( final boolean source, final Model model, final Projects projects )
-    {
-        final MavenProject project = new MavenProject();
-        project.setOriginalModel( model );
-        project.setFile( model.getPomFile() );
-        project.setSource( source );
-
-        // 1. resolve parents (needed during first phase of build)
-        final Parent parent = model.getParent();
-        if ( parent != null )
-        {
-            final GA pid = getId( parent );
-            if ( projects.isProject( pid ) )
-            {
-                final Result<MavenProject> result = buildProject( pid, projects );
-                if ( result.hasErrors() )
-                    return error( project );
-                project.setParent( result.get() );
-                project.setParentFile( result.get().getFile() );
-            }
-        }
-
-        // 2. perform first phase of build to assemble and interpolate model
-        final ModelBuildingRequest request = projects.newModelBuildingRequest( project );
-        final ModelBuildingResult result;
-        try
-        {
-            result = modelBuilder.build( request );
-        }
-        catch ( ModelBuildingException e )
-        {
-            return error( project, e.getProblems() );
-        }
-
-        // 3. resolve imports (needed during second phase of build)
-        final Result<Iterable<MavenProject>> imports = buildDependencies( getImports( result.getEffectiveModel() ),
-                                                                          getDependencyId, projects );
-        if ( imports.hasErrors() )
-            return error( project, concat( result.getProblems(), imports.getProblems() ) );
-        project.setProjectImports( imports.get() );
-
-        // 4. perform second phase of build to compute effective model
-        try
-        {
-            modelBuilder.build( request, result );
-        }
-        catch ( ModelBuildingException e )
-        {
-            return error( project, e.getProblems() );
-        }
-        final Model effectiveModel = result.getEffectiveModel();
-        project.setModel( effectiveModel );
-
-        // 5. resolve plugins
-        final Result<Iterable<MavenProject>> plugins = buildDependencies( effectiveModel.getBuild().getPlugins(),
-                                                                          getPluginId, projects );
-        if ( plugins.hasErrors() )
-            return error( project, plugins.getProblems() );
-        project.setProjectPlugins( plugins.get() );
-
-        // 6. resolve dependencies
-        final Result<Iterable<MavenProject>> dependencies = buildDependencies( effectiveModel.getDependencies(),
-                                                                               getDependencyId, projects );
-        if ( dependencies.hasErrors() )
-            return error( project, dependencies.getProblems() );
-        project.setProjectDependencies( dependencies.get() );
-
-        initProject( project, result, projects.request );
-
-        return success( project );// TODO preserve errors
-    }
-
-    <T> Result<Iterable<MavenProject>> buildDependencies( Iterable<T> deps, Function<T, GA> getId, Projects projects )
-    {
-        return newResultSet( newArrayList( transform( filter( transform( deps, getId ), projects ),
-                                                      buildProject( projects ) ) ) );
     }
 
     static Iterable<Dependency> getImports( Model model )

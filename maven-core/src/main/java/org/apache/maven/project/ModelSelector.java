@@ -202,9 +202,7 @@ public class ModelSelector
     public Map<GA, ? extends Model> select( final File baseDir, final List<String> selectors,
                                             final Map<GA, ? extends Model> models )
     {
-        return selectors.isEmpty()
-                                  ? models
-                                  : filterValues( models, or( transform( selectors, parseSelectorClosure( baseDir ) ) ) );
+        return filterValues( models, or( transform( selectors, parseSelectorClosure( baseDir ) ) ) );
     }
 
 }

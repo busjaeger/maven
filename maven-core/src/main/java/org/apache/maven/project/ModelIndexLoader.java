@@ -2,17 +2,24 @@ package org.apache.maven.project;
 
 import static com.google.common.base.Joiner.on;
 import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.uniqueIndex;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.io.File.separatorChar;
+import static java.util.Collections.singleton;
 import static org.apache.maven.model.building.ModelBuildingRequest.VALIDATION_LEVEL_STRICT;
 import static org.apache.maven.model.building.ModelProblem.Severity.ERROR;
+import static org.apache.maven.model.building.ModelProblem.Severity.FATAL;
 import static org.apache.maven.model.building.ModelProblem.Version.BASE;
 import static org.apache.maven.model.building.Result.addProblems;
+import static org.apache.maven.model.building.Result.error;
+import static org.apache.maven.model.building.Result.newResult;
 import static org.apache.maven.model.building.Result.newResultSet;
+import static org.apache.maven.project.GA.getId;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.maven.model.Model;
@@ -33,8 +40,8 @@ import org.codehaus.plexus.component.annotations.Requirement;
  *
  * @author bbusjaeger
  */
-@Component(role = ModelLoader.class)
-public class ModelLoader
+@Component(role = ModelIndexLoader.class)
+public class ModelIndexLoader
 {
 
     @Requirement
@@ -42,6 +49,25 @@ public class ModelLoader
 
     @Requirement
     private ModelBuilder modelBuilder;
+
+    public Result<Map<GA, Model>> load( File pom )
+    {
+        // 1. load all models
+        final Result<Iterable<Model>> result = loadModules( pom );
+
+        // 2. index by Id: throws IllegalArgumentException if multiple projects with same ID
+        final Map<GA, Model> index;
+        try
+        {
+            index = uniqueIndex( result.get(), getId );
+        }
+        catch ( IllegalArgumentException e )
+        {
+            return error( singleton( new DefaultModelProblem( "Duplicate project identifiers: " + e.getMessage(),
+                                                              FATAL, BASE, "", -1, -1, null, e ) ) );
+        }
+        return newResult( index, result.getProblems() );
+    }
 
     /**
      * Loads the model for the given pom file and all models that can be located on the local file system by recursively
@@ -53,7 +79,7 @@ public class ModelLoader
      * @throws ModelParseException
      * @throws IOException
      */
-    public Result<Iterable<Model>> loadModules( File pom )
+    Result<Iterable<Model>> loadModules( File pom )
     {
         final Loader loader = new Loader();
         loader.loadModules( pom );
